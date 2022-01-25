@@ -56,7 +56,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_Sta
 /* Sets the ratio of the resampler. For example, if the input sample rate is
    48000Hz, then a ratio of 0.5 will cause the output sample rate to be
    24000Hz. */
-CLOWNRESAMPLER_API void ClownResampler_LowLevel_SetResamplingRatio(ClownResampler_LowLevel_State *resampler, float ratio);
+CLOWNRESAMPLER_API void ClownResampler_LowLevel_SetResamplingRatio(ClownResampler_LowLevel_State *resampler, unsigned long input_sample_rate, unsigned long output_sample_rate);
 
 /* Resamples (pre-processed) audio. The 'total_input_frames' and
    'total_output_frames' parameters measure the size of their respective
@@ -96,7 +96,7 @@ typedef struct ClownResampler_HighLevel_State
    state is passed to any other functions. This function also sets the ratio of
    the resampler. For example, if the input sample rate is 48000Hz, then a
    ratio of 0.5 will cause the output sample rate to be 24000Hz. */
-CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_State *resampler, unsigned int channels, float ratio);
+CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_State *resampler, unsigned int channels, unsigned long input_sample_rate, unsigned long output_sample_rate);
 
 /* Resamples audio. This function returns when either the output buffer is
    full, or the input callback stops providing frames.
@@ -173,15 +173,7 @@ static float ClownResampler_LanczosKernel(float x)
 	return (sinf(x_times_pi) * sinf(x_times_pi_divided_by_radius)) / (x_times_pi * x_times_pi_divided_by_radius);
 }
 
-static float ClownResampler_LanczosKernelTable[CLOWNRESAMPLER_KERNEL_RADIUS * CLOWNRESAMPLER_KERNEL_RESOLUTION];
-
-static float ClownResampler_LanczosKernelPrecomputed(size_t x)
-{
-	assert(x < CLOWNRESAMPLER_COUNT_OF(ClownResampler_LanczosKernelTable));
-
-	return ClownResampler_LanczosKernelTable[x];
-}
-
+static float ClownResampler_LanczosKernelTable[CLOWNRESAMPLER_KERNEL_RADIUS * 2 * CLOWNRESAMPLER_KERNEL_RESOLUTION];
 
 /* Low-level API */
 
@@ -195,21 +187,22 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_Sta
 
 	resampler->channels = channels;
 	resampler->position = 0.0f;
-	ClownResampler_LowLevel_SetResamplingRatio(resampler, 1.0f); /* A nice sane default */
+	ClownResampler_LowLevel_SetResamplingRatio(resampler, 1, 1); /* A nice sane default */
 }
 
-CLOWNRESAMPLER_API void ClownResampler_LowLevel_SetResamplingRatio(ClownResampler_LowLevel_State *resampler, float ratio)
+CLOWNRESAMPLER_API void ClownResampler_LowLevel_SetResamplingRatio(ClownResampler_LowLevel_State *resampler, unsigned long input_sample_rate, unsigned long output_sample_rate)
 {
+	const float ratio = (float)input_sample_rate / (float)output_sample_rate;
+	const float inverse_ratio = (float)output_sample_rate / (float)input_sample_rate;
+
 	/* TODO - Freak-out if the ratio is so high that the kernel radius would exceed the size of the input buffer */
 	const float kernel_scale = CLOWNRESAMPLER_MAX(ratio, 1.0f);
-
-	assert(ratio != 0.0f); /* I would check if the ratio is NAN or INF, but I can't do that in C89 */
 
 	resampler->increment = ratio;
 	resampler->stretched_kernel_radius = (float)CLOWNRESAMPLER_KERNEL_RADIUS * kernel_scale;
 	resampler->integer_stretched_kernel_radius = (size_t)ceilf(resampler->stretched_kernel_radius);
 	resampler->stretched_kernel_radius_delta = (float)resampler->integer_stretched_kernel_radius - resampler->stretched_kernel_radius;
-	resampler->inverse_kernel_scale = 1.0f / resampler->stretched_kernel_radius * CLOWNRESAMPLER_COUNT_OF(ClownResampler_LanczosKernelTable) / 2.0f;
+	resampler->inverse_kernel_scale = inverse_ratio * CLOWNRESAMPLER_KERNEL_RESOLUTION;
 	resampler->kernel_step_size = (size_t)resampler->inverse_kernel_scale;
 }
 
@@ -251,29 +244,29 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 		}
 		else*/
 		{
-			size_t i;
+			size_t sample_index, kernel_index;
 
 			float samples[CLOWNRESAMPLER_MAXIMUM_CHANNELS] = {0.0f}; /* Sample accumulators */
 
 			/* Calculate the bounds of the kernel convolution. */
 			const size_t min = (size_t)(resampler->position + resampler->stretched_kernel_radius_delta + 1.0f); /* Essentially rounding up (with an acceptable slight margin of error) */
-			const size_t max = (size_t)(resampler->position + resampler->stretched_kernel_radius_delta + resampler->stretched_kernel_radius * 2); /* Will round down on its own */
+			const size_t max = (size_t)(resampler->position + resampler->stretched_kernel_radius_delta + resampler->stretched_kernel_radius * 2 - 1.0f); /* Will round down on its own */
 
-			assert(min < *total_input_frames);
+			const size_t kernel_start = (size_t)(((float)min - resampler->position) * resampler->inverse_kernel_scale);
+
+			assert(min < *total_input_frames + resampler->integer_stretched_kernel_radius * 2);
 			assert(max < *total_input_frames + resampler->integer_stretched_kernel_radius * 2);
 
-			size_t kernel_position = (size_t)(((float)min - resampler->position) * resampler->inverse_kernel_scale);
-
-			for (i = min; i <= max; ++i)
+			for (sample_index = min, kernel_index = kernel_start; sample_index <= max; ++sample_index, kernel_index += resampler->kernel_step_size)
 			{
 				/* The distance between the frames being output and the frames being read are the parameter to the Lanczos kernel. */
-				const float kernel_value = ClownResampler_LanczosKernelPrecomputed(kernel_position);
+				assert(kernel_index < CLOWNRESAMPLER_COUNT_OF(ClownResampler_LanczosKernelTable));
 
-				kernel_position += resampler->kernel_step_size;
+				const float kernel_value = ClownResampler_LanczosKernelTable[kernel_index];
 
 				/* Modulate the samples with the kernel and add it to the accumulator. */
 				for (current_channel = 0; current_channel < resampler->channels; ++current_channel)
-					samples[current_channel] += (float)input_buffer[i * resampler->channels + current_channel] * kernel_value;
+					samples[current_channel] += (float)input_buffer[sample_index * resampler->channels + current_channel] * kernel_value;
 			}
 
 			/* Perform clamping and output samples. */
@@ -292,10 +285,10 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 
 /* High-level API */
 
-CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_State *resampler, unsigned int channels, float ratio)
+CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_State *resampler, unsigned int channels, unsigned long input_sample_rate, unsigned long output_sample_rate)
 {
 	ClownResampler_LowLevel_Init(&resampler->low_level, channels);
-	ClownResampler_LowLevel_SetResamplingRatio(&resampler->low_level, ratio);
+	ClownResampler_LowLevel_SetResamplingRatio(&resampler->low_level, input_sample_rate, output_sample_rate);
 
 	memset(resampler->input_buffer, 0, resampler->low_level.integer_stretched_kernel_radius * 2 * sizeof(*resampler->input_buffer));
 	resampler->input_buffer_start = resampler->input_buffer_end = resampler->input_buffer + resampler->low_level.integer_stretched_kernel_radius;
