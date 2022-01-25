@@ -169,6 +169,7 @@ CLOWNRESAMPLER_API size_t ClownResampler_HighLevel_Resample(ClownResampler_HighL
 #define CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEIL(x) (((x) + (CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE - 1)) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
 #define CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(a, b) ((a) * (b) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
 
+/* TODO - Maybe have an option for a precomputed kernel here in the code, so that floating-point logic can be avoided completely? */
 static long clownresampler_lanczos_kernel_table[CLOWNRESAMPLER_KERNEL_RADIUS * 2 * CLOWNRESAMPLER_KERNEL_RESOLUTION];
 static int clownresampler_lanczos_kernel_table_generated = 0;
 
@@ -282,9 +283,9 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 
 			for (sample_index = min, kernel_index = kernel_start; sample_index < max; ++sample_index, kernel_index += resampler->kernel_step_size)
 			{
-				/* The distance between the frames being output and the frames being read are the parameter to the Lanczos kernel. */
 				assert(kernel_index < CLOWNRESAMPLER_COUNT_OF(clownresampler_lanczos_kernel_table));
 
+				/* The distance between the frames being output and the frames being read are the parameter to the Lanczos kernel. */
 				const long kernel_value = clownresampler_lanczos_kernel_table[kernel_index];
 
 				/* Kernel values are essentially percentages, so sum them now so that we can divide by them later in order to normalise the sample. */
@@ -304,6 +305,8 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 				/* Normalise */
 				/* TODO - Maybe multiply by the inverse in fixed-point format for better performance? */
 				const long sample = samples[current_channel] / normaliser;
+
+				assert(sample >= -0x8000 && sample <= 0x7FFF);
 
 				/* Output */
 				*output_buffer_pointer++ = (short)sample;
