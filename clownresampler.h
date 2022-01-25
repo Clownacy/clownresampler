@@ -298,17 +298,12 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 			/* Convert the normalisation value into something we can actually use for normalisation. */
 			normaliser = CLOWNRESAMPLER_MAX(1, CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEIL(normaliser));
 
-			/* Normalise, clamp, and output the samples. */
+			/* Normalise and output the samples. */
 			for (current_channel = 0; current_channel < resampler->channels; ++current_channel)
 			{
-				long sample = samples[current_channel];
-
 				/* Normalise */
 				/* TODO - Maybe multiply by the inverse in fixed-point format for better performance? */
-				sample /= normaliser;
-
-				/* Clamp */
-				/*sample = CLOWNRESAMPLER_CLAMP(sample, -0x8000, 0x7FFF);*/
+				const long sample = samples[current_channel] / normaliser;
 
 				/* Output */
 				*output_buffer_pointer++ = (short)sample;
