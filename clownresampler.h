@@ -183,7 +183,7 @@ static float ClownResampler_LanczosKernel(float x)
 	return (sinf(x_times_pi) * sinf(x_times_pi_divided_by_radius)) / (x_times_pi * x_times_pi_divided_by_radius);
 }
 
-static float ClownResampler_LanczosKernelTable[CLOWNRESAMPLER_KERNEL_RADIUS * 2 * CLOWNRESAMPLER_KERNEL_RESOLUTION];
+static long ClownResampler_LanczosKernelTable[CLOWNRESAMPLER_KERNEL_RADIUS * 2 * CLOWNRESAMPLER_KERNEL_RESOLUTION];
 
 /* Low-level API */
 
@@ -193,7 +193,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_Sta
 	assert(channels <= CLOWNRESAMPLER_MAXIMUM_CHANNELS);
 
 	for (size_t i = 0; i < CLOWNRESAMPLER_COUNT_OF(ClownResampler_LanczosKernelTable); ++i)
-		ClownResampler_LanczosKernelTable[i] = ClownResampler_LanczosKernel(((float)i / (float)CLOWNRESAMPLER_COUNT_OF(ClownResampler_LanczosKernelTable) * 2.0f - 1.0f) * (float)CLOWNRESAMPLER_KERNEL_RADIUS);
+		ClownResampler_LanczosKernelTable[i] = (long)((float)CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE * ClownResampler_LanczosKernel(((float)i / (float)CLOWNRESAMPLER_COUNT_OF(ClownResampler_LanczosKernelTable) * 2.0f - 1.0f) * (float)CLOWNRESAMPLER_KERNEL_RADIUS));
 
 	resampler->channels = channels;
 	resampler->position_integer = 0;
@@ -207,7 +207,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_SetResamplingRatio(ClownResample
 	const unsigned long inverse_ratio = CLOWNRESAMPLER_TO_FIXED_POINT_FROM_RATIO(output_sample_rate, input_sample_rate);
 
 	/* TODO - Freak-out if the ratio is so high that the kernel radius would exceed the size of the input buffer */
-	const unsigned long kernel_scale = CLOWNRESAMPLER_MAX(ratio, CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE);
+	const unsigned long kernel_scale = CLOWNRESAMPLER_MAX(ratio, CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(1));
 
 	resampler->increment = ratio;
 	resampler->stretched_kernel_radius = CLOWNRESAMPLER_KERNEL_RADIUS * kernel_scale;
@@ -225,8 +225,6 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 
 	for (;;)
 	{
-		unsigned int current_channel;
-
 		/* Check if we've reached the end of the input buffer. */
 		if (resampler->position_integer >= *total_input_frames)
 		{
@@ -241,34 +239,26 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 			resampler->position_integer = 0;
 			break;
 		}
-
-		/* This avoids the need for the kernel to return 1.0f if its parameter is 0.0f. */
-		/*if (position_fractional == 0.0f)
+		else
 		{
-			assert(position_integer < *total_input_frames);
-
-			for (current_channel = 0; current_channel < resampler->channels; ++current_channel)
-				*output_buffer_pointer++ = input_buffer[position_integer * resampler->channels + current_channel];
-		}
-		else*/
-		{
+			unsigned int current_channel;
 			size_t sample_index, kernel_index;
 
-			float samples[CLOWNRESAMPLER_MAXIMUM_CHANNELS] = {0.0f}; /* Sample accumulators */
+			long samples[CLOWNRESAMPLER_MAXIMUM_CHANNELS] = {0}; /* Sample accumulators */
+
+		#ifndef NDEBUG
+			long accumulator = 0;
+		#endif
 
 			/* Calculate the bounds of the kernel convolution. */
-			const size_t min_offset = CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEIL(resampler->position_fractional + resampler->stretched_kernel_radius_delta);
-			const size_t min = resampler->position_integer + min_offset;
+			const size_t min_relative = CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEIL(resampler->position_fractional + resampler->stretched_kernel_radius_delta);
+			const size_t min = resampler->position_integer + min_relative;
 			const size_t max = resampler->position_integer + resampler->integer_stretched_kernel_radius + CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_FLOOR(resampler->position_fractional + resampler->stretched_kernel_radius);
-			//const size_t max = (size_t)(resampler->position + resampler->integer_stretched_kernel_radius + resampler->stretched_kernel_radius - 1.0f); /* Will round down on its own */
-
-			// (min_offset * 0x10000 + resampler->position_integer * 0x10000) - (resampler->position_fractional + resampler->position_integer * 0x10000)
-			// (minoffset * 0x10000 + positioninteger * 0x10000) - (positionfractional + positioninteger * 0x10000)
 
 			/* Yes, I know this line is freaking insane.
 			   It's essentially a simplified and fixed-point version of this:
 			   const size_t kernel_start = (size_t)((float)min - resampler->position_if_it_were_a_float) * resampler->inverse_kernel_scale_if_it_were_a_float; */
-			const size_t kernel_start = CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_FLOOR(CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(min_offset) - resampler->position_fractional, resampler->inverse_kernel_scale));
+			const size_t kernel_start = CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_FLOOR(CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(min_relative) - resampler->position_fractional, resampler->inverse_kernel_scale));
 
 			assert(min < *total_input_frames + resampler->integer_stretched_kernel_radius * 2);
 			assert(max < *total_input_frames + resampler->integer_stretched_kernel_radius * 2);
@@ -278,22 +268,32 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 				/* The distance between the frames being output and the frames being read are the parameter to the Lanczos kernel. */
 				assert(kernel_index < CLOWNRESAMPLER_COUNT_OF(ClownResampler_LanczosKernelTable));
 
-				const float kernel_value = ClownResampler_LanczosKernelTable[kernel_index];
+				const long kernel_value = ClownResampler_LanczosKernelTable[kernel_index];
+
+			#ifndef NDEBUG
+				accumulator += kernel_value;
+			#endif
 
 				/* Modulate the samples with the kernel and add it to the accumulator. */
 				for (current_channel = 0; current_channel < resampler->channels; ++current_channel)
-					samples[current_channel] += (float)input_buffer[sample_index * resampler->channels + current_channel] * kernel_value;
+					samples[current_channel] += CLOWNRESAMPLER_FIXED_POINT_MULTIPLY((long)input_buffer[sample_index * resampler->channels + current_channel], kernel_value);
 			}
+
+			assert(accumulator <= 0x10000);
 
 			/* Perform clamping and output samples. */
 			for (current_channel = 0; current_channel < resampler->channels; ++current_channel)
-				*output_buffer_pointer++ = (short)CLOWNRESAMPLER_CLAMP(samples[current_channel], -32768.0f, 32767.0f);
-		}
+			{
+				assert(samples[current_channel] >= -0x8000 && samples[current_channel] <= 0x7FFF);
+				/**output_buffer_pointer++ = (short)CLOWNRESAMPLER_CLAMP(samples[current_channel], -0x8000, 0x7FFF);*/
+				*output_buffer_pointer++ = (short)samples[current_channel];
+			}
 
-		/* Increment input buffer position. */
-		resampler->position_fractional += resampler->increment;
-		resampler->position_integer += CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_FLOOR(resampler->position_fractional);
-		resampler->position_fractional %= CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE;
+			/* Increment input buffer position. */
+			resampler->position_fractional += resampler->increment;
+			resampler->position_integer += CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_FLOOR(resampler->position_fractional);
+			resampler->position_fractional %= CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE;
+		}
 	}
 
 	/* Make 'total_output_frames' reflect how much space there is left in the output buffer. */
