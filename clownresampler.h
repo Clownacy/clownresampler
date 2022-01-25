@@ -30,11 +30,12 @@
 
 #include <stddef.h>
 
-#define CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE 0x10000 /* For 16.16 */
+/* For 16.16. This is good because it reduces multiplcations and divisions to mere bit-shifts. */
+#define CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE 0x10000
 #define CLOWNRESAMPLER_TO_FIXED_POINT_FROM_RATIO(a, b) (CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE * (a) / (b))
 #define CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(x) ((x) * CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
 #define CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_FLOOR(x) ((x) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
-#define CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_ROUND(x) (((x) + (CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE / 1)) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
+#define CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_ROUND(x) (((x) + (CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE / 2)) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
 #define CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEIL(x) (((x) + (CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE - 1)) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
 #define CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(a, b) ((a) * (b) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
 
@@ -47,8 +48,8 @@ typedef struct ClownResampler_LowLevel_State
 {
 	unsigned int channels;
 	size_t position_integer;
-	unsigned int position_fractional;
-	size_t increment;                       /* 16.16 fixed point */
+	unsigned long position_fractional;      /* 16.16 fixed point */
+	unsigned long increment;                /* 16.16 fixed point */
 	size_t stretched_kernel_radius;         /* 16.16 fixed point */
 	size_t integer_stretched_kernel_radius;
 	size_t stretched_kernel_radius_delta;   /* 16.16 fixed point */
@@ -206,7 +207,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_SetResamplingRatio(ClownResample
 	const unsigned long inverse_ratio = CLOWNRESAMPLER_TO_FIXED_POINT_FROM_RATIO(output_sample_rate, input_sample_rate);
 
 	/* TODO - Freak-out if the ratio is so high that the kernel radius would exceed the size of the input buffer */
-	const float kernel_scale = CLOWNRESAMPLER_MAX(ratio, CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE);
+	const unsigned long kernel_scale = CLOWNRESAMPLER_MAX(ratio, CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE);
 
 	resampler->increment = ratio;
 	resampler->stretched_kernel_radius = CLOWNRESAMPLER_KERNEL_RADIUS * kernel_scale;
