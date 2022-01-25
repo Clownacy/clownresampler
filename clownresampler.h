@@ -43,7 +43,7 @@ typedef struct ClownResampler_LowLevel_State
 	float stretched_kernel_radius;
 	size_t integer_stretched_kernel_radius;
 	float stretched_kernel_radius_delta;
-	float inverse_kernel_scale;
+	size_t inverse_kernel_scale;
 	size_t kernel_step_size;
 } ClownResampler_LowLevel_State;
 
@@ -163,7 +163,7 @@ static float ClownResampler_LanczosKernel(float x)
 	if (x == 0.0f)
 		return 1.0f;
 
-	assert(fabsf(x) <= kernel_radius * 1.001f); /* A slight margin of rounding error */
+	assert(fabsf(x) <= kernel_radius);
 	/*if (fabsf(x) > kernel_radius)
 		return 0.0f;*/
 
@@ -202,8 +202,9 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_SetResamplingRatio(ClownResample
 	resampler->stretched_kernel_radius = (float)CLOWNRESAMPLER_KERNEL_RADIUS * kernel_scale;
 	resampler->integer_stretched_kernel_radius = (size_t)ceilf(resampler->stretched_kernel_radius);
 	resampler->stretched_kernel_radius_delta = (float)resampler->integer_stretched_kernel_radius - resampler->stretched_kernel_radius;
-	resampler->inverse_kernel_scale = inverse_ratio * CLOWNRESAMPLER_KERNEL_RESOLUTION;
-	resampler->kernel_step_size = (size_t)resampler->inverse_kernel_scale;
+	assert(resampler->stretched_kernel_radius_delta < 1.0f);
+	resampler->inverse_kernel_scale = CLOWNRESAMPLER_KERNEL_RESOLUTION * (0x10000 * output_sample_rate / input_sample_rate);
+	resampler->kernel_step_size = resampler->inverse_kernel_scale >> 16;
 }
 
 CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const short *input_buffer, size_t *total_input_frames, short *output_buffer, size_t *total_output_frames)
@@ -249,10 +250,10 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 			float samples[CLOWNRESAMPLER_MAXIMUM_CHANNELS] = {0.0f}; /* Sample accumulators */
 
 			/* Calculate the bounds of the kernel convolution. */
-			const size_t min = (size_t)(resampler->position + resampler->stretched_kernel_radius_delta + 1.0f); /* Essentially rounding up (with an acceptable slight margin of error) */
-			const size_t max = (size_t)(resampler->position + resampler->stretched_kernel_radius_delta + resampler->stretched_kernel_radius * 2 - 1.0f); /* Will round down on its own */
+			const size_t min = (size_t)ceilf(resampler->position + resampler->stretched_kernel_radius_delta); /* Essentially rounding up (with an acceptable slight margin of error) */
+			const size_t max = (size_t)(resampler->position + resampler->integer_stretched_kernel_radius + resampler->stretched_kernel_radius - 1.0f); /* Will round down on its own */
 
-			const size_t kernel_start = (size_t)(((float)min - resampler->position) * resampler->inverse_kernel_scale);
+			const size_t kernel_start = (size_t)(((float)min - resampler->position) * resampler->inverse_kernel_scale) >> 16;
 
 			assert(min < *total_input_frames + resampler->integer_stretched_kernel_radius * 2);
 			assert(max < *total_input_frames + resampler->integer_stretched_kernel_radius * 2);
