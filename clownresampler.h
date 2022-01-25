@@ -30,6 +30,14 @@
 
 #include <stddef.h>
 
+#define CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE 0x10000 /* For 16.16 */
+#define CLOWNRESAMPLER_TO_FIXED_POINT_FROM_RATIO(a, b) (CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE * (a) / (b))
+#define CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(x) ((x) * CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
+#define CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_FLOOR(x) ((x) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
+#define CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_ROUND(x) (((x) + (CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE / 1)) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
+#define CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEIL(x) (((x) + (CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE - 1)) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
+#define CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(a, b) ((a) * (b) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
+
 
 /* Low-level API.
    This API has lower overhead, but is more difficult to use, requiring that
@@ -38,12 +46,13 @@
 typedef struct ClownResampler_LowLevel_State
 {
 	unsigned int channels;
-	float position;
-	float increment;
-	float stretched_kernel_radius;
+	size_t position_integer;
+	unsigned int position_fractional;
+	size_t increment;                       /* 16.16 fixed point */
+	size_t stretched_kernel_radius;         /* 16.16 fixed point */
 	size_t integer_stretched_kernel_radius;
-	float stretched_kernel_radius_delta;
-	size_t inverse_kernel_scale;
+	size_t stretched_kernel_radius_delta;   /* 16.16 fixed point */
+	size_t inverse_kernel_scale;            /* 16.16 fixed point */
 	size_t kernel_step_size;
 } ClownResampler_LowLevel_State;
 
@@ -186,25 +195,26 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_Sta
 		ClownResampler_LanczosKernelTable[i] = ClownResampler_LanczosKernel(((float)i / (float)CLOWNRESAMPLER_COUNT_OF(ClownResampler_LanczosKernelTable) * 2.0f - 1.0f) * (float)CLOWNRESAMPLER_KERNEL_RADIUS);
 
 	resampler->channels = channels;
-	resampler->position = 0.0f;
+	resampler->position_integer = 0;
+	resampler->position_fractional = 0;
 	ClownResampler_LowLevel_SetResamplingRatio(resampler, 1, 1); /* A nice sane default */
 }
 
 CLOWNRESAMPLER_API void ClownResampler_LowLevel_SetResamplingRatio(ClownResampler_LowLevel_State *resampler, unsigned long input_sample_rate, unsigned long output_sample_rate)
 {
-	const float ratio = (float)input_sample_rate / (float)output_sample_rate;
-	const float inverse_ratio = (float)output_sample_rate / (float)input_sample_rate;
+	const unsigned long ratio = CLOWNRESAMPLER_TO_FIXED_POINT_FROM_RATIO(input_sample_rate, output_sample_rate);
+	const unsigned long inverse_ratio = CLOWNRESAMPLER_TO_FIXED_POINT_FROM_RATIO(output_sample_rate, input_sample_rate);
 
 	/* TODO - Freak-out if the ratio is so high that the kernel radius would exceed the size of the input buffer */
-	const float kernel_scale = CLOWNRESAMPLER_MAX(ratio, 1.0f);
+	const float kernel_scale = CLOWNRESAMPLER_MAX(ratio, CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE);
 
 	resampler->increment = ratio;
-	resampler->stretched_kernel_radius = (float)CLOWNRESAMPLER_KERNEL_RADIUS * kernel_scale;
-	resampler->integer_stretched_kernel_radius = (size_t)ceilf(resampler->stretched_kernel_radius);
-	resampler->stretched_kernel_radius_delta = (float)resampler->integer_stretched_kernel_radius - resampler->stretched_kernel_radius;
-	assert(resampler->stretched_kernel_radius_delta < 1.0f);
-	resampler->inverse_kernel_scale = CLOWNRESAMPLER_KERNEL_RESOLUTION * (0x10000 * output_sample_rate / input_sample_rate);
-	resampler->kernel_step_size = resampler->inverse_kernel_scale >> 16;
+	resampler->stretched_kernel_radius = CLOWNRESAMPLER_KERNEL_RADIUS * kernel_scale;
+	resampler->integer_stretched_kernel_radius = CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEIL(resampler->stretched_kernel_radius);
+	resampler->stretched_kernel_radius_delta = CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(resampler->integer_stretched_kernel_radius) - resampler->stretched_kernel_radius;
+	assert(resampler->stretched_kernel_radius_delta < CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(1));
+	resampler->inverse_kernel_scale = CLOWNRESAMPLER_KERNEL_RESOLUTION * inverse_ratio;
+	resampler->kernel_step_size = CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_FLOOR(resampler->inverse_kernel_scale);
 }
 
 CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const short *input_buffer, size_t *total_input_frames, short *output_buffer, size_t *total_output_frames)
@@ -216,22 +226,18 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 	{
 		unsigned int current_channel;
 
-		/* To my knowledge, this is the fastest way to obtain the integral and fractional components of a float. */
-		const size_t position_integer = (size_t)resampler->position;
-		const float position_fractional = resampler->position - (float)position_integer;
-
 		/* Check if we've reached the end of the input buffer. */
-		if (position_integer >= *total_input_frames)
+		if (resampler->position_integer >= *total_input_frames)
 		{
-			resampler->position -= *total_input_frames;
+			resampler->position_integer -= *total_input_frames;
 			*total_input_frames = 0;
 			break;
 		}
 		/* Check if we've reached the end of the output buffer. */
 		else if (output_buffer_pointer >= output_buffer_end)
 		{
-			resampler->position -= position_integer;
-			*total_input_frames -= position_integer;
+			*total_input_frames -= resampler->position_integer;
+			resampler->position_integer = 0;
 			break;
 		}
 
@@ -250,15 +256,23 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 			float samples[CLOWNRESAMPLER_MAXIMUM_CHANNELS] = {0.0f}; /* Sample accumulators */
 
 			/* Calculate the bounds of the kernel convolution. */
-			const size_t min = (size_t)ceilf(resampler->position + resampler->stretched_kernel_radius_delta); /* Essentially rounding up (with an acceptable slight margin of error) */
-			const size_t max = (size_t)(resampler->position + resampler->integer_stretched_kernel_radius + resampler->stretched_kernel_radius - 1.0f); /* Will round down on its own */
+			const size_t min_offset = CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEIL(resampler->position_fractional + resampler->stretched_kernel_radius_delta);
+			const size_t min = resampler->position_integer + min_offset;
+			const size_t max = resampler->position_integer + resampler->integer_stretched_kernel_radius + CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_FLOOR(resampler->position_fractional + resampler->stretched_kernel_radius);
+			//const size_t max = (size_t)(resampler->position + resampler->integer_stretched_kernel_radius + resampler->stretched_kernel_radius - 1.0f); /* Will round down on its own */
 
-			const size_t kernel_start = (size_t)(((float)min - resampler->position) * resampler->inverse_kernel_scale) >> 16;
+			// (min_offset * 0x10000 + resampler->position_integer * 0x10000) - (resampler->position_fractional + resampler->position_integer * 0x10000)
+			// (minoffset * 0x10000 + positioninteger * 0x10000) - (positionfractional + positioninteger * 0x10000)
+
+			/* Yes, I know this line is freaking insane.
+			   It's essentially a simplified and fixed-point version of this:
+			   const size_t kernel_start = (size_t)((float)min - resampler->position_if_it_were_a_float) * resampler->inverse_kernel_scale_if_it_were_a_float; */
+			const size_t kernel_start = CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_FLOOR(CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(min_offset) - resampler->position_fractional, resampler->inverse_kernel_scale));
 
 			assert(min < *total_input_frames + resampler->integer_stretched_kernel_radius * 2);
 			assert(max < *total_input_frames + resampler->integer_stretched_kernel_radius * 2);
 
-			for (sample_index = min, kernel_index = kernel_start; sample_index <= max; ++sample_index, kernel_index += resampler->kernel_step_size)
+			for (sample_index = min, kernel_index = kernel_start; sample_index < max; ++sample_index, kernel_index += resampler->kernel_step_size)
 			{
 				/* The distance between the frames being output and the frames being read are the parameter to the Lanczos kernel. */
 				assert(kernel_index < CLOWNRESAMPLER_COUNT_OF(ClownResampler_LanczosKernelTable));
@@ -276,7 +290,9 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 		}
 
 		/* Increment input buffer position. */
-		resampler->position += resampler->increment;
+		resampler->position_fractional += resampler->increment;
+		resampler->position_integer += CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_FLOOR(resampler->position_fractional);
+		resampler->position_fractional %= CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE;
 	}
 
 	/* Make 'total_output_frames' reflect how much space there is left in the output buffer. */
