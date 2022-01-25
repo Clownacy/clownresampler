@@ -18,10 +18,15 @@
 #define CLOWNRESAMPLER_KERNEL_RADIUS 3
 #endif
 
+/* How many samples to render per lobe for the pre-computed Lanczos kernel.
+   Higher numbers produce a higher-quality Lanczos kernel, but cause it to take
+   up more memory and cache. */
 #ifndef CLOWNRESAMPLER_KERNEL_RESOLUTION
-#define CLOWNRESAMPLER_KERNEL_RESOLUTION 0x400 /* 1024 */
+#define CLOWNRESAMPLER_KERNEL_RESOLUTION 0x400 /* 1024 samples per lobe should be more than good enough */
 #endif
 
+/* The maximum number of channels supported by the resampler.
+   This will likely be removed in the future. */
 #ifndef CLOWNRESAMPLER_MAXIMUM_CHANNELS
 #define CLOWNRESAMPLER_MAXIMUM_CHANNELS 2
 #endif
@@ -29,15 +34,6 @@
 /* Header */
 
 #include <stddef.h>
-
-/* For 16.16. This is good because it reduces multiplcations and divisions to mere bit-shifts. */
-#define CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE 0x10000
-#define CLOWNRESAMPLER_TO_FIXED_POINT_FROM_RATIO(a, b) (CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE * (a) / (b))
-#define CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(x) ((x) * CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
-#define CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_FLOOR(x) ((x) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
-#define CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_ROUND(x) (((x) + (CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE / 2)) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
-#define CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEIL(x) (((x) + (CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE - 1)) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
-#define CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(a, b) ((a) * (b) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
 
 
 /* Low-level API.
@@ -165,6 +161,16 @@ CLOWNRESAMPLER_API size_t ClownResampler_HighLevel_Resample(ClownResampler_HighL
 #define CLOWNRESAMPLER_MAX(a, b) ((a) > (b) ? (a) : (b))
 #define CLOWNRESAMPLER_CLAMP(x, min, max) (CLOWNRESAMPLER_MIN((max), CLOWNRESAMPLER_MAX((min), (x))))
 
+#define CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE 0x10000 /* For 16.16. This is good because it reduces multiplcations and divisions to mere bit-shifts. */
+#define CLOWNRESAMPLER_TO_FIXED_POINT_FROM_RATIO(a, b) (CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE * (a) / (b))
+#define CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(x) ((x) * CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
+#define CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_FLOOR(x) ((x) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
+#define CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_ROUND(x) (((x) + (CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE / 2)) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
+#define CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEIL(x) (((x) + (CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE - 1)) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
+#define CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(a, b) ((a) * (b) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
+
+static long clownresampler_lanczos_kernel_table[CLOWNRESAMPLER_KERNEL_RADIUS * 2 * CLOWNRESAMPLER_KERNEL_RESOLUTION];
+
 static float ClownResampler_LanczosKernel(float x)
 {
 	const float kernel_radius = (float)CLOWNRESAMPLER_KERNEL_RADIUS;
@@ -183,8 +189,6 @@ static float ClownResampler_LanczosKernel(float x)
 	return (sinf(x_times_pi) * sinf(x_times_pi_divided_by_radius)) / (x_times_pi * x_times_pi_divided_by_radius);
 }
 
-static long ClownResampler_LanczosKernelTable[CLOWNRESAMPLER_KERNEL_RADIUS * 2 * CLOWNRESAMPLER_KERNEL_RESOLUTION];
-
 /* Low-level API */
 
 CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_State *resampler, unsigned int channels)
@@ -192,8 +196,8 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_Sta
 	/* TODO - We really should just return here */
 	assert(channels <= CLOWNRESAMPLER_MAXIMUM_CHANNELS);
 
-	for (size_t i = 0; i < CLOWNRESAMPLER_COUNT_OF(ClownResampler_LanczosKernelTable); ++i)
-		ClownResampler_LanczosKernelTable[i] = (long)((float)CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE * ClownResampler_LanczosKernel(((float)i / (float)CLOWNRESAMPLER_COUNT_OF(ClownResampler_LanczosKernelTable) * 2.0f - 1.0f) * (float)CLOWNRESAMPLER_KERNEL_RADIUS));
+	for (size_t i = 0; i < CLOWNRESAMPLER_COUNT_OF(clownresampler_lanczos_kernel_table); ++i)
+		clownresampler_lanczos_kernel_table[i] = (long)((float)CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE * ClownResampler_LanczosKernel(((float)i / (float)CLOWNRESAMPLER_COUNT_OF(clownresampler_lanczos_kernel_table) * 2.0f - 1.0f) * (float)CLOWNRESAMPLER_KERNEL_RADIUS));
 
 	resampler->channels = channels;
 	resampler->position_integer = 0;
@@ -266,9 +270,9 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 			for (sample_index = min, kernel_index = kernel_start; sample_index < max; ++sample_index, kernel_index += resampler->kernel_step_size)
 			{
 				/* The distance between the frames being output and the frames being read are the parameter to the Lanczos kernel. */
-				assert(kernel_index < CLOWNRESAMPLER_COUNT_OF(ClownResampler_LanczosKernelTable));
+				assert(kernel_index < CLOWNRESAMPLER_COUNT_OF(clownresampler_lanczos_kernel_table));
 
-				const long kernel_value = ClownResampler_LanczosKernelTable[kernel_index];
+				const long kernel_value = clownresampler_lanczos_kernel_table[kernel_index];
 
 			#ifndef NDEBUG
 				accumulator += kernel_value;
