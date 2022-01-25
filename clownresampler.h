@@ -54,14 +54,13 @@ typedef struct ClownResampler_LowLevel_State
 } ClownResampler_LowLevel_State;
 
 /* Initialises a low-level resampler. This function must be called before the
-   state is passed to any other functions. By default, it will have a
-   resampling ratio of 1.0 (that is, the output sample rate will be the same as
-   the input). */
+   state is passed to any other functions. By default, the output sample rate
+   will be the same as the input). */
 CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_State *resampler, unsigned int channels);
 
-/* Sets the ratio of the resampler. For example, if the input sample rate is
-   48000Hz, then a ratio of 0.5 will cause the output sample rate to be
-   24000Hz. */
+/* Sets the ratio of the resampler. The parameters don't actually have to match
+   the sample rates being used - they just need to provide the ratio between
+   the two (for example, 1 and 2 works just as well as 22050 and 44100). */
 CLOWNRESAMPLER_API void ClownResampler_LowLevel_SetResamplingRatio(ClownResampler_LowLevel_State *resampler, unsigned long input_sample_rate, unsigned long output_sample_rate);
 
 /* Resamples (pre-processed) audio. The 'total_input_frames' and
@@ -99,9 +98,10 @@ typedef struct ClownResampler_HighLevel_State
 } ClownResampler_HighLevel_State;
 
 /* Initialises a high-level resampler. This function must be called before the
-   state is passed to any other functions. This function also sets the ratio of
-   the resampler. For example, if the input sample rate is 48000Hz, then a
-   ratio of 0.5 will cause the output sample rate to be 24000Hz. */
+   state is passed to any other functions. The sample rate parameters don't
+   actually have to match the sample rates being used - they just need to
+   provide the ratio between the two (for example, 1 and 2 works just as well
+   as 22050 and 44100). */
 CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_State *resampler, unsigned int channels, unsigned long input_sample_rate, unsigned long output_sample_rate);
 
 /* Resamples audio. This function returns when either the output buffer is
@@ -170,6 +170,7 @@ CLOWNRESAMPLER_API size_t ClownResampler_HighLevel_Resample(ClownResampler_HighL
 #define CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(a, b) ((a) * (b) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
 
 static long clownresampler_lanczos_kernel_table[CLOWNRESAMPLER_KERNEL_RADIUS * 2 * CLOWNRESAMPLER_KERNEL_RESOLUTION];
+static int clownresampler_lanczos_kernel_table_generated = 0;
 
 static float ClownResampler_LanczosKernel(float x)
 {
@@ -189,15 +190,29 @@ static float ClownResampler_LanczosKernel(float x)
 	return (sinf(x_times_pi) * sinf(x_times_pi_divided_by_radius)) / (x_times_pi * x_times_pi_divided_by_radius);
 }
 
+static void ClownResampler_PrecalculateKernel(void)
+{
+	size_t i;
+
+	for (i = 0; i < CLOWNRESAMPLER_COUNT_OF(clownresampler_lanczos_kernel_table); ++i)
+		clownresampler_lanczos_kernel_table[i] = (long)((float)0x10000 * ClownResampler_LanczosKernel(((float)i / (float)CLOWNRESAMPLER_COUNT_OF(clownresampler_lanczos_kernel_table) * 2.0f - 1.0f) * (float)CLOWNRESAMPLER_KERNEL_RADIUS));
+}
+
+
 /* Low-level API */
 
 CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_State *resampler, unsigned int channels)
 {
+	/* TODO - This is a bit of a hack - come up with something better. */
+	if (!clownresampler_lanczos_kernel_table_generated)
+	{
+		clownresampler_lanczos_kernel_table_generated = 1;
+
+		ClownResampler_PrecalculateKernel();
+	}
+
 	/* TODO - We really should just return here */
 	assert(channels <= CLOWNRESAMPLER_MAXIMUM_CHANNELS);
-
-	for (size_t i = 0; i < CLOWNRESAMPLER_COUNT_OF(clownresampler_lanczos_kernel_table); ++i)
-		clownresampler_lanczos_kernel_table[i] = (long)((float)CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE * ClownResampler_LanczosKernel(((float)i / (float)CLOWNRESAMPLER_COUNT_OF(clownresampler_lanczos_kernel_table) * 2.0f - 1.0f) * (float)CLOWNRESAMPLER_KERNEL_RADIUS));
 
 	resampler->channels = channels;
 	resampler->position_integer = 0;
@@ -276,7 +291,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 
 				/* Modulate the samples with the kernel and add it to the accumulator. */
 				for (current_channel = 0; current_channel < resampler->channels; ++current_channel)
-					samples[current_channel] += CLOWNRESAMPLER_FIXED_POINT_MULTIPLY((long)input_buffer[sample_index * resampler->channels + current_channel], kernel_value);
+					samples[current_channel] += ((long)input_buffer[sample_index * resampler->channels + current_channel] * kernel_value) / 0x10000;
 			}
 
 			/* Turn the accumulator into a normaliser. */
@@ -285,13 +300,11 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 			/* Perform normalisation and output samples. */
 			for (current_channel = 0; current_channel < resampler->channels; ++current_channel)
 			{
-				/* Nromalise */
+				/* Normalise */
+				/* TODO - Maybe multiply by the inverse in fixed-point format for better performance? */
 				const long sample = samples[current_channel] / accumulator;
 
-				assert(sample >= -0x8000 && sample <= 0x7FFF);
-
-				/**output_buffer_pointer++ = (short)CLOWNRESAMPLER_CLAMP(sample, -0x8000, 0x7FFF);*/
-				*output_buffer_pointer++ = (short)sample;
+				*output_buffer_pointer++ = (short)CLOWNRESAMPLER_CLAMP(sample, -0x8000, 0x7FFF);
 			}
 
 			/* Increment input buffer position. */
