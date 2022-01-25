@@ -195,7 +195,7 @@ static void ClownResampler_PrecalculateKernel(void)
 	size_t i;
 
 	for (i = 0; i < CLOWNRESAMPLER_COUNT_OF(clownresampler_lanczos_kernel_table); ++i)
-		clownresampler_lanczos_kernel_table[i] = (long)((float)0x10000 * ClownResampler_LanczosKernel(((float)i / (float)CLOWNRESAMPLER_COUNT_OF(clownresampler_lanczos_kernel_table) * 2.0f - 1.0f) * (float)CLOWNRESAMPLER_KERNEL_RADIUS));
+		clownresampler_lanczos_kernel_table[i] = (long)CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(ClownResampler_LanczosKernel(((float)i / (float)CLOWNRESAMPLER_COUNT_OF(clownresampler_lanczos_kernel_table) * 2.0f - 1.0f) * (float)CLOWNRESAMPLER_KERNEL_RADIUS));
 }
 
 
@@ -265,7 +265,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 
 			long samples[CLOWNRESAMPLER_MAXIMUM_CHANNELS] = {0}; /* Sample accumulators */
 
-			long accumulator = 0;
+			long normaliser = 0;
 
 			/* Calculate the bounds of the kernel convolution. */
 			const size_t min_relative = CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEIL(resampler->position_fractional + resampler->stretched_kernel_radius_delta);
@@ -287,24 +287,31 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 
 				const long kernel_value = clownresampler_lanczos_kernel_table[kernel_index];
 
-				accumulator += kernel_value;
+				/* Kernel values are essentially percentages, so sum them now so that we can divide by them later in order to normalise the sample. */
+				normaliser += kernel_value;
 
 				/* Modulate the samples with the kernel and add it to the accumulator. */
 				for (current_channel = 0; current_channel < resampler->channels; ++current_channel)
-					samples[current_channel] += ((long)input_buffer[sample_index * resampler->channels + current_channel] * kernel_value) / 0x10000;
+					samples[current_channel] += CLOWNRESAMPLER_FIXED_POINT_MULTIPLY((long)input_buffer[sample_index * resampler->channels + current_channel], kernel_value);
 			}
 
-			/* Turn the accumulator into a normaliser. */
-			accumulator = CLOWNRESAMPLER_MAX(1, accumulator / 0x10000);
+			/* Convert the normalisation value into something we can actually use for normalisation. */
+			normaliser = CLOWNRESAMPLER_MAX(1, CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEIL(normaliser));
 
-			/* Perform normalisation and output samples. */
+			/* Normalise, clamp, and output the samples. */
 			for (current_channel = 0; current_channel < resampler->channels; ++current_channel)
 			{
+				long sample = samples[current_channel];
+
 				/* Normalise */
 				/* TODO - Maybe multiply by the inverse in fixed-point format for better performance? */
-				const long sample = samples[current_channel] / accumulator;
+				sample /= normaliser;
 
-				*output_buffer_pointer++ = (short)CLOWNRESAMPLER_CLAMP(sample, -0x8000, 0x7FFF);
+				/* Clamp */
+				/*sample = CLOWNRESAMPLER_CLAMP(sample, -0x8000, 0x7FFF);*/
+
+				/* Output */
+				*output_buffer_pointer++ = (short)sample;
 			}
 
 			/* Increment input buffer position. */
