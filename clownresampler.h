@@ -250,9 +250,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 
 			long samples[CLOWNRESAMPLER_MAXIMUM_CHANNELS] = {0}; /* Sample accumulators */
 
-		#ifndef NDEBUG
 			long accumulator = 0;
-		#endif
 
 			/* Calculate the bounds of the kernel convolution. */
 			const size_t min_relative = CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEIL(resampler->position_fractional + resampler->stretched_kernel_radius_delta);
@@ -274,23 +272,26 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 
 				const long kernel_value = clownresampler_lanczos_kernel_table[kernel_index];
 
-			#ifndef NDEBUG
 				accumulator += kernel_value;
-			#endif
 
 				/* Modulate the samples with the kernel and add it to the accumulator. */
 				for (current_channel = 0; current_channel < resampler->channels; ++current_channel)
 					samples[current_channel] += CLOWNRESAMPLER_FIXED_POINT_MULTIPLY((long)input_buffer[sample_index * resampler->channels + current_channel], kernel_value);
 			}
 
-			assert(accumulator <= 0x10000);
+			/* Turn the accumulator into a normaliser. */
+			accumulator = CLOWNRESAMPLER_MAX(1, accumulator / 0x10000);
 
-			/* Perform clamping and output samples. */
+			/* Perform normalisation and output samples. */
 			for (current_channel = 0; current_channel < resampler->channels; ++current_channel)
 			{
-				assert(samples[current_channel] >= -0x8000 && samples[current_channel] <= 0x7FFF);
-				/**output_buffer_pointer++ = (short)CLOWNRESAMPLER_CLAMP(samples[current_channel], -0x8000, 0x7FFF);*/
-				*output_buffer_pointer++ = (short)samples[current_channel];
+				/* Nromalise */
+				const long sample = samples[current_channel] / accumulator;
+
+				assert(sample >= -0x8000 && sample <= 0x7FFF);
+
+				/**output_buffer_pointer++ = (short)CLOWNRESAMPLER_CLAMP(sample, -0x8000, 0x7FFF);*/
+				*output_buffer_pointer++ = (short)sample;
 			}
 
 			/* Increment input buffer position. */
