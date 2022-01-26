@@ -227,8 +227,8 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_SetResamplingRatio(ClownResample
 	const unsigned long inverse_ratio = CLOWNRESAMPLER_TO_FIXED_POINT_FROM_RATIO(output_sample_rate, input_sample_rate);
 
 	/* TODO - Freak-out if the ratio is so high that the kernel radius would exceed the size of the input buffer */
-	const unsigned long kernel_scale = CLOWNRESAMPLER_MAX(ratio, CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(1));
-	const unsigned long inverse_kernel_scale = CLOWNRESAMPLER_MIN(inverse_ratio, CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(1));
+	const unsigned long kernel_scale = CLOWNRESAMPLER_MAX(CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(1), ratio);
+	const unsigned long inverse_kernel_scale = CLOWNRESAMPLER_MIN(CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(1), inverse_ratio);
 
 	resampler->increment = ratio;
 	resampler->stretched_kernel_radius = CLOWNRESAMPLER_KERNEL_RADIUS * kernel_scale;
@@ -253,7 +253,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 			break;
 		}
 		/* Check if we've reached the end of the output buffer. */
-		else if (output_buffer_pointer >= output_buffer_end)
+		else if (output_buffer_pointer == output_buffer_end)
 		{
 			*total_input_frames -= resampler->position_integer;
 			resampler->position_integer = 0;
@@ -276,7 +276,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 			/* Yes, I know this line is freaking insane.
 			   It's essentially a simplified and fixed-point version of this:
 			   const size_t kernel_start = (size_t)((float)min - resampler->position_if_it_were_a_float) * resampler->kernel_step_size; */
-			const size_t kernel_start = CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_FLOOR((CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(min_relative) - resampler->position_fractional) * resampler->kernel_step_size);
+			const size_t kernel_start = CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(resampler->kernel_step_size, (CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(min_relative) - resampler->position_fractional));
 
 			assert(min < *total_input_frames + resampler->integer_stretched_kernel_radius * 2);
 			assert(max < *total_input_frames + resampler->integer_stretched_kernel_radius * 2);
@@ -285,30 +285,35 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 			{
 				assert(kernel_index < CLOWNRESAMPLER_COUNT_OF(clownresampler_lanczos_kernel_table));
 
-				/* The distance between the frames being output and the frames being read are the parameter to the Lanczos kernel. */
+				/* The distance between the frames being output and the frames being read is the parameter to the Lanczos kernel. */
 				const long kernel_value = clownresampler_lanczos_kernel_table[kernel_index];
 
 				/* Kernel values are essentially percentages, so sum them now so that we can divide by them later in order to normalise the sample. */
 				normaliser += kernel_value;
 
-				/* Modulate the samples with the kernel and add it to the accumulator. */
+				/* Modulate the samples with the kernel and add them to the accumulators. */
 				for (current_channel = 0; current_channel < resampler->channels; ++current_channel)
 					samples[current_channel] += CLOWNRESAMPLER_FIXED_POINT_MULTIPLY((long)input_buffer[sample_index * resampler->channels + current_channel], kernel_value);
 			}
 
-			/* Convert the normalisation value into something we can actually use for normalisation. */
+			/* Invert the normalisation value so that we can multiply against it instead of divide. */
 			normaliser = CLOWNRESAMPLER_MAX(1, CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEIL(normaliser));
 
-			/* Normalise and output the samples. */
+			/* Normalise, clamp, and output the samples. */
 			for (current_channel = 0; current_channel < resampler->channels; ++current_channel)
 			{
-				/* Normalise */
-				/* TODO - Maybe multiply by the inverse in fixed-point format for better performance? */
-				const long sample = samples[current_channel] / normaliser;
+				long sample = samples[current_channel];
 
+				/* Normalise. */
+				/* TODO - Maybe multiply by the inverse in fixed-point format for better performance? */
+				sample /= normaliser;
+
+				/* Clamp. */
+				/* Ideally this wouldn't be needed, but aliasing and/or rounding error in the Lanczos kernel necessitate it. */
+				/*sample = CLOWNRESAMPLER_CLAMP(sample, -0x8000, 0x7FFF);*/
 				assert(sample >= -0x8000 && sample <= 0x7FFF);
 
-				/* Output */
+				/* Output. */
 				*output_buffer_pointer++ = (short)sample;
 			}
 
