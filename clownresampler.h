@@ -275,7 +275,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 
 			/* Yes, I know this line is freaking insane.
 			   It's essentially a simplified and fixed-point version of this:
-			   const size_t kernel_start = (size_t)((float)min - resampler->position_if_it_were_a_float) * resampler->kernel_step_size; */
+			   const size_t kernel_start = (size_t)(resampler->kernel_step_size * ((float)min - resampler->position_if_it_were_a_float)); */
 			const size_t kernel_start = CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(resampler->kernel_step_size, (CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(min_relative) - resampler->position_fractional));
 
 			assert(min < *total_input_frames + resampler->integer_stretched_kernel_radius * 2);
