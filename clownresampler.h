@@ -32,6 +32,8 @@
 #endif
 
 
+
+
 /* Header */
 
 #include <stddef.h>
@@ -297,7 +299,8 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 			}
 
 			/* Invert the normalisation value so that we can multiply against it instead of divide. */
-			normaliser = CLOWNRESAMPLER_MAX(1, CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEIL(normaliser));
+			/* We have to be careful of hitting the signed 32-bit limit here. */
+			normaliser = 0x40000000 / (normaliser / 4);
 
 			/* Normalise, clamp, and output the samples. */
 			for (current_channel = 0; current_channel < resampler->channels; ++current_channel)
@@ -305,8 +308,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 				long sample = samples[current_channel];
 
 				/* Normalise. */
-				/* TODO - Maybe multiply by the inverse in fixed-point format for better performance? */
-				sample /= normaliser;
+				sample = CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(sample, normaliser);
 
 				/* Clamp. */
 				/* Ideally this wouldn't be needed, but aliasing and/or rounding error in the Lanczos kernel necessitate it. */
