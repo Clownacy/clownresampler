@@ -173,22 +173,22 @@ CLOWNRESAMPLER_API size_t ClownResampler_HighLevel_Resample(ClownResampler_HighL
 static float clownresampler_lanczos_kernel_table[CLOWNRESAMPLER_KERNEL_RADIUS * 2 * CLOWNRESAMPLER_KERNEL_RESOLUTION];
 static int clownresampler_lanczos_kernel_table_generated = 0;
 
-static float ClownResampler_LanczosKernel(float x)
+static double ClownResampler_LanczosKernel(double x)
 {
-	const float kernel_radius = (float)CLOWNRESAMPLER_KERNEL_RADIUS;
+	const double kernel_radius = (double)CLOWNRESAMPLER_KERNEL_RADIUS;
 
-	const float x_times_pi = x * 3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679f; /* 100 digits should be good enough */
-	const float x_times_pi_divided_by_radius = x_times_pi / kernel_radius;
+	const double x_times_pi = x * 3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679; /* 100 digits should be good enough */
+	const double x_times_pi_divided_by_radius = x_times_pi / kernel_radius;
 
-	/*assert(x != 0.0f);*/
-	if (x == 0.0f)
-		return 1.0f;
+	/*assert(x != 0.0);*/
+	if (x == 0.0)
+		return 1.0;
 
-	assert(fabsf(x) <= kernel_radius);
-	/*if (fabsf(x) > kernel_radius)
-		return 0.0f;*/
+	assert(fabs(x) <= kernel_radius);
+	/*if (fabs(x) > kernel_radius)
+		return 0.0f*/
 
-	return (sinf(x_times_pi) * sinf(x_times_pi_divided_by_radius)) / (x_times_pi * x_times_pi_divided_by_radius);
+	return (sin(x_times_pi) * sin(x_times_pi_divided_by_radius)) / (x_times_pi * x_times_pi_divided_by_radius);
 }
 
 static void ClownResampler_PrecalculateKernel(void)
@@ -196,7 +196,7 @@ static void ClownResampler_PrecalculateKernel(void)
 	size_t i;
 
 	for (i = 0; i < CLOWNRESAMPLER_COUNT_OF(clownresampler_lanczos_kernel_table); ++i)
-		clownresampler_lanczos_kernel_table[i] = ClownResampler_LanczosKernel(((float)i / (float)CLOWNRESAMPLER_COUNT_OF(clownresampler_lanczos_kernel_table) * 2.0f - 1.0f) * (float)CLOWNRESAMPLER_KERNEL_RADIUS);
+		clownresampler_lanczos_kernel_table[i] = (float)ClownResampler_LanczosKernel(((double)i / (double)CLOWNRESAMPLER_COUNT_OF(clownresampler_lanczos_kernel_table) * 2.0 - 1.0) * (double)CLOWNRESAMPLER_KERNEL_RADIUS);
 }
 
 
