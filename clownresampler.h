@@ -32,8 +32,6 @@
 #endif
 
 
-
-
 /* Header */
 
 #include <stddef.h>
