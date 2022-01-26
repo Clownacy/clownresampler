@@ -177,16 +177,16 @@ static float ClownResampler_LanczosKernel(float x)
 {
 	const float kernel_radius = (float)CLOWNRESAMPLER_KERNEL_RADIUS;
 
-	//assert(x != 0.0f);
+	const float x_times_pi = x * 3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679f; /* 100 digits should be good enough */
+	const float x_times_pi_divided_by_radius = x_times_pi / kernel_radius;
+
+	/*assert(x != 0.0f);*/
 	if (x == 0.0f)
 		return 1.0f;
 
 	assert(fabsf(x) <= kernel_radius);
 	/*if (fabsf(x) > kernel_radius)
 		return 0.0f;*/
-
-	const float x_times_pi = x * 3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679f; /* 100 digits should be good enough */
-	const float x_times_pi_divided_by_radius = x_times_pi / kernel_radius;
 
 	return (sinf(x_times_pi) * sinf(x_times_pi_divided_by_radius)) / (x_times_pi * x_times_pi_divided_by_radius);
 }
@@ -283,10 +283,12 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 
 			for (sample_index = min, kernel_index = kernel_start; sample_index < max; ++sample_index, kernel_index += resampler->kernel_step_size)
 			{
+				float kernel_value;
+
 				assert(kernel_index < CLOWNRESAMPLER_COUNT_OF(clownresampler_lanczos_kernel_table));
 
 				/* The distance between the frames being output and the frames being read is the parameter to the Lanczos kernel. */
-				const float kernel_value = clownresampler_lanczos_kernel_table[kernel_index];
+				kernel_value = clownresampler_lanczos_kernel_table[kernel_index];
 
 				/* Kernel values are essentially percentages, so sum them now so that we can divide by them later in order to normalise the sample. */
 				normaliser += kernel_value;
