@@ -310,8 +310,8 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 
 				/* Clamp. */
 				/* Ideally this wouldn't be needed, but aliasing and/or rounding error in the Lanczos kernel necessitate it. */
-				/*sample = CLOWNRESAMPLER_CLAMP(sample, -0x8000, 0x7FFF);*/
-				assert(sample >= -0x8000 && sample <= 0x7FFF);
+				/*sample = CLOWNRESAMPLER_CLAMP(sample, -0x7FFF, 0x7FFF);*/
+				assert(sample >= -0x7FFF && sample <= 0x7FFF);
 
 				/* Output. */
 				*output_buffer_pointer++ = (short)sample;
