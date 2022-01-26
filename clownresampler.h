@@ -1,7 +1,11 @@
-/* clownresampler
-   A public-domain C89 single-file library for resampling audio.
-   Made by Clownacy.
-   https://github.com/Clownacy/clownresampler */
+/*
+clownresampler
+
+A single-file library for resampling audio, written in C89 and dual-licenced
+under the terms of The Unlicence and the Zero-Clause BSD licence.
+
+https://github.com/Clownacy/clownresampler
+*/
 
 /*
 This software is available under two licences - choose whichever you prefer:
