@@ -169,8 +169,8 @@ CLOWNRESAMPLER_API size_t ClownResampler_HighLevel_Resample(ClownResampler_HighL
 #define CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEIL(x) (((x) + (CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE - 1)) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
 #define CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(a, b) ((a) * (b) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
 
-/* TODO - Maybe have an option for a precomputed kernel here in the code, so that floating-point logic can be avoided completely? */
-static long clownresampler_lanczos_kernel_table[CLOWNRESAMPLER_KERNEL_RADIUS * 2 * CLOWNRESAMPLER_KERNEL_RESOLUTION];
+/* TODO - Maybe have an option for a precomputed kernel here in the code? */
+static float clownresampler_lanczos_kernel_table[CLOWNRESAMPLER_KERNEL_RADIUS * 2 * CLOWNRESAMPLER_KERNEL_RESOLUTION];
 static int clownresampler_lanczos_kernel_table_generated = 0;
 
 static float ClownResampler_LanczosKernel(float x)
@@ -196,7 +196,7 @@ static void ClownResampler_PrecalculateKernel(void)
 	size_t i;
 
 	for (i = 0; i < CLOWNRESAMPLER_COUNT_OF(clownresampler_lanczos_kernel_table); ++i)
-		clownresampler_lanczos_kernel_table[i] = (long)CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(ClownResampler_LanczosKernel(((float)i / (float)CLOWNRESAMPLER_COUNT_OF(clownresampler_lanczos_kernel_table) * 2.0f - 1.0f) * (float)CLOWNRESAMPLER_KERNEL_RADIUS));
+		clownresampler_lanczos_kernel_table[i] = ClownResampler_LanczosKernel(((float)i / (float)CLOWNRESAMPLER_COUNT_OF(clownresampler_lanczos_kernel_table) * 2.0f - 1.0f) * (float)CLOWNRESAMPLER_KERNEL_RADIUS);
 }
 
 
@@ -264,9 +264,9 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 			unsigned int current_channel;
 			size_t sample_index, kernel_index;
 
-			long samples[CLOWNRESAMPLER_MAXIMUM_CHANNELS] = {0}; /* Sample accumulators */
+			float samples[CLOWNRESAMPLER_MAXIMUM_CHANNELS] = {0.0f}; /* Sample accumulators */
 
-			long normaliser = 0;
+			float normaliser = 0.0f;
 
 			/* Calculate the bounds of the kernel convolution. */
 			const size_t min_relative = CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEIL(resampler->position_fractional + resampler->stretched_kernel_radius_delta);
@@ -286,32 +286,30 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 				assert(kernel_index < CLOWNRESAMPLER_COUNT_OF(clownresampler_lanczos_kernel_table));
 
 				/* The distance between the frames being output and the frames being read is the parameter to the Lanczos kernel. */
-				const long kernel_value = clownresampler_lanczos_kernel_table[kernel_index];
+				const float kernel_value = clownresampler_lanczos_kernel_table[kernel_index];
 
 				/* Kernel values are essentially percentages, so sum them now so that we can divide by them later in order to normalise the sample. */
 				normaliser += kernel_value;
 
 				/* Modulate the samples with the kernel and add them to the accumulators. */
 				for (current_channel = 0; current_channel < resampler->channels; ++current_channel)
-					samples[current_channel] += CLOWNRESAMPLER_FIXED_POINT_MULTIPLY((long)input_buffer[sample_index * resampler->channels + current_channel], kernel_value);
+					samples[current_channel] += (float)input_buffer[sample_index * resampler->channels + current_channel] * kernel_value;
 			}
 
-			/* Invert the normalisation value so that we can multiply against it instead of divide. */
-			/* We have to be careful of hitting the signed 32-bit limit here. */
-			normaliser = 0x40000000 / (normaliser / 4);
+			/* Invert the normalisation value so that we can multiply against it instead of divide for a slight speed boost. */
+			normaliser = 1.0f / normaliser;
 
 			/* Normalise, clamp, and output the samples. */
 			for (current_channel = 0; current_channel < resampler->channels; ++current_channel)
 			{
-				long sample = samples[current_channel];
+				float sample = samples[current_channel];
 
 				/* Normalise. */
-				sample = CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(sample, normaliser);
+				sample *= normaliser;
 
 				/* Clamp. */
 				/* Ideally this wouldn't be needed, but aliasing and/or rounding error in the Lanczos kernel necessitate it. */
-				/*sample = CLOWNRESAMPLER_CLAMP(sample, -0x7FFF, 0x7FFF);*/
-				assert(sample >= -0x7FFF && sample <= 0x7FFF);
+				sample = CLOWNRESAMPLER_CLAMP(sample, -32767.0f, 32767.0f);
 
 				/* Output. */
 				*output_buffer_pointer++ = (short)sample;
