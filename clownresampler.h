@@ -218,7 +218,6 @@ CLOWNRESAMPLER_API size_t ClownResampler_HighLevel_Resample(ClownResampler_HighL
 #define CLOWNRESAMPLER_CLAMP(x, min, max) (CLOWNRESAMPLER_MIN((max), CLOWNRESAMPLER_MAX((min), (x))))
 
 #define CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE 0x10000 /* For 16.16. This is good because it reduces multiplcations and divisions to mere bit-shifts. */
-#define CLOWNRESAMPLER_TO_FIXED_POINT_FROM_RATIO(a, b) (CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE * (a) / (b))
 #define CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(x) ((x) * CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
 #define CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_FLOOR(x) ((x) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
 #define CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_ROUND(x) (((x) + (CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE / 2)) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
@@ -277,10 +276,40 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_Sta
 	ClownResampler_LowLevel_SetResamplingRatio(resampler, 1, 1); /* A nice sane default */
 }
 
+static unsigned long ClownResampler_CalculateRatio(unsigned long a, unsigned long b)
+{
+	/* HAHAHA, I NEVER THOUGHT LONG DIVISION WOULD ACTUALLY COME IN HANDY! */
+	unsigned long upper, middle, lower, result;
+
+	/* As well as splitting the number into chunks of CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE
+	   size, this sneakily also multiplies it by CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE. */
+	upper = a / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE;
+	middle = a % CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE;
+	lower = 0;
+
+	/* Perform long division. */
+	middle |= upper % b * CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE;
+	upper /= b;
+
+	lower |= middle % b * CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE;
+	middle /= b;
+
+	/*even_lower |= lower % b * CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE;*/ /* Nothing to feed the remainder into... */
+	lower /= b;
+
+	/* Merge the chunks back together. */
+	result = 0;
+	result += upper * CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE * CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE;
+	result += middle * CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE;
+	result += lower;
+
+	return result;
+}
+
 CLOWNRESAMPLER_API void ClownResampler_LowLevel_SetResamplingRatio(ClownResampler_LowLevel_State *resampler, unsigned long input_sample_rate, unsigned long output_sample_rate)
 {
-	const unsigned long ratio = CLOWNRESAMPLER_TO_FIXED_POINT_FROM_RATIO(input_sample_rate, output_sample_rate);
-	const unsigned long inverse_ratio = CLOWNRESAMPLER_TO_FIXED_POINT_FROM_RATIO(output_sample_rate, input_sample_rate);
+	const unsigned long ratio = ClownResampler_CalculateRatio(input_sample_rate, output_sample_rate);
+	const unsigned long inverse_ratio = ClownResampler_CalculateRatio(output_sample_rate, input_sample_rate);
 
 	/* TODO - Freak-out if the ratio is so high that the kernel radius would exceed the size of the input buffer */
 	const unsigned long kernel_scale = CLOWNRESAMPLER_MAX(CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(1), ratio);
