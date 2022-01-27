@@ -92,6 +92,10 @@ PERFORMANCE OF THIS SOFTWARE.
 
 #include <stddef.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 
 /* Low-level API.
    This API has lower overhead, but is more difficult to use, requiring that
@@ -201,6 +205,10 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_S
    'user_data'
    An arbitrary pointer that is passed to the 'pull_callback' function. */
 CLOWNRESAMPLER_API size_t ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, short *output_buffer, size_t total_output_frames, size_t(*pull_callback)(void *user_data, short *buffer, size_t buffer_size), void *user_data);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* CLOWNRESAMPLER_H */
 
