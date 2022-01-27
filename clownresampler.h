@@ -202,10 +202,15 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_S
    An arbitrary pointer that is passed to the 'pull_callback' function. */
 CLOWNRESAMPLER_API size_t ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, short *output_buffer, size_t total_output_frames, size_t(*pull_callback)(void *user_data, short *buffer, size_t buffer_size), void *user_data);
 
+#endif /* CLOWNRESAMPLER_H */
+
 
 /* Implementation */
 
 #ifdef CLOWNRESAMPLER_IMPLEMENTATION
+
+#ifndef CLOWNRESAMPLER_IMPLEMENTATION_ONCE
+#define CLOWNRESAMPLER_IMPLEMENTATION_ONCE
 
 #include <assert.h>
 #include <math.h>
@@ -476,6 +481,6 @@ CLOWNRESAMPLER_API size_t ClownResampler_HighLevel_Resample(ClownResampler_HighL
 	return total_output_frames - (output_buffer_end - output_buffer_start) / resampler->low_level.channels;
 }
 
-#endif /* CLOWNRESAMPLER_IMPLEMENTATION */
+#endif /* CLOWNRESAMPLER_IMPLEMENTATION_ONCE */
 
-#endif /* CLOWNRESAMPLER_H */
+#endif /* CLOWNRESAMPLER_IMPLEMENTATION */
