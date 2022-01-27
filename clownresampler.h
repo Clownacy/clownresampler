@@ -304,9 +304,9 @@ static unsigned long ClownResampler_CalculateRatio(unsigned long a, unsigned lon
 
 	/* Merge the chunks back together. */
 	result = 0;
-	result += upper * CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE * CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE;
-	result += middle * CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE;
-	result += lower;
+	result += upper * (CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE * 2);
+	result += middle * (CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE * 1);
+	result += lower * (CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE * 0);
 
 	return result;
 }
