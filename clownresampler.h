@@ -212,10 +212,33 @@ CLOWNRESAMPLER_API size_t ClownResampler_HighLevel_Resample(ClownResampler_HighL
 #ifndef CLOWNRESAMPLER_IMPLEMENTATION_ONCE
 #define CLOWNRESAMPLER_IMPLEMENTATION_ONCE
 
+/* These can be used to provide your own C standard library functions. */
+#ifndef CLOWNRESAMPLER_ASSERT
 #include <assert.h>
+#define CLOWNRESAMPLER_ASSERT assert
+#endif
+
+#ifndef CLOWNRESAMPLER_FABS
 #include <math.h>
-#include <stddef.h>
+#define CLOWNRESAMPLER_FABS fabs
+#endif
+
+#ifndef CLOWNRESAMPLER_SIN
+#include <math.h>
+#define CLOWNRESAMPLER_SIN sin
+#endif
+
+#ifndef CLOWNRESAMPLER_MEMSET
 #include <string.h>
+#define CLOWNRESAMPLER_MEMSET memset
+#endif
+
+#ifndef CLOWNRESAMPLER_MEMMOVE
+#include <string.h>
+#define CLOWNRESAMPLER_MEMMOVE memmove
+#endif
+
+#include <stddef.h>
 
 #define CLOWNRESAMPLER_COUNT_OF(x) (sizeof(x) / sizeof(*(x)))
 #define CLOWNRESAMPLER_MIN(a, b) ((a) < (b) ? (a) : (b))
@@ -240,15 +263,15 @@ static double ClownResampler_LanczosKernel(double x)
 	const double x_times_pi = x * 3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679; /* 100 digits should be good enough */
 	const double x_times_pi_divided_by_radius = x_times_pi / kernel_radius;
 
-	/*assert(x != 0.0);*/
+	/*CLOWNRESAMPLER_ASSERT(x != 0.0);*/
 	if (x == 0.0)
 		return 1.0;
 
-	assert(fabs(x) <= kernel_radius);
-	/*if (fabs(x) > kernel_radius)
+	CLOWNRESAMPLER_ASSERT(CLOWNRESAMPLER_FABS(x) <= kernel_radius);
+	/*if (CLOWNRESAMPLER_FABS(x) > kernel_radius)
 		return 0.0f*/
 
-	return (sin(x_times_pi) * sin(x_times_pi_divided_by_radius)) / (x_times_pi * x_times_pi_divided_by_radius);
+	return (CLOWNRESAMPLER_SIN(x_times_pi) * CLOWNRESAMPLER_SIN(x_times_pi_divided_by_radius)) / (x_times_pi * x_times_pi_divided_by_radius);
 }
 
 static void ClownResampler_PrecalculateKernel(void)
@@ -273,7 +296,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_Sta
 	}
 
 	/* TODO - We really should just return here */
-	assert(channels <= CLOWNRESAMPLER_MAXIMUM_CHANNELS);
+	CLOWNRESAMPLER_ASSERT(channels <= CLOWNRESAMPLER_MAXIMUM_CHANNELS);
 
 	resampler->channels = channels;
 	resampler->position_integer = 0;
@@ -324,7 +347,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_SetResamplingRatio(ClownResample
 	resampler->stretched_kernel_radius = CLOWNRESAMPLER_KERNEL_RADIUS * kernel_scale;
 	resampler->integer_stretched_kernel_radius = CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEIL(resampler->stretched_kernel_radius);
 	resampler->stretched_kernel_radius_delta = CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(resampler->integer_stretched_kernel_radius) - resampler->stretched_kernel_radius;
-	assert(resampler->stretched_kernel_radius_delta < CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(1));
+	CLOWNRESAMPLER_ASSERT(resampler->stretched_kernel_radius_delta < CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(1));
 	resampler->kernel_step_size = CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(CLOWNRESAMPLER_KERNEL_RESOLUTION, inverse_kernel_scale);
 }
 
@@ -368,14 +391,14 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 			   const size_t kernel_start = (size_t)(resampler->kernel_step_size * ((float)(min / resampler->channels) - resampler->position_if_it_were_a_float)); */
 			const size_t kernel_start = CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(resampler->kernel_step_size, (CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(min_relative) - resampler->position_fractional));
 
-			assert(min < (*total_input_frames + resampler->integer_stretched_kernel_radius * 2) * resampler->channels);
-			assert(max < (*total_input_frames + resampler->integer_stretched_kernel_radius * 2) * resampler->channels);
+			CLOWNRESAMPLER_ASSERT(min < (*total_input_frames + resampler->integer_stretched_kernel_radius * 2) * resampler->channels);
+			CLOWNRESAMPLER_ASSERT(max < (*total_input_frames + resampler->integer_stretched_kernel_radius * 2) * resampler->channels);
 
 			for (sample_index = min, kernel_index = kernel_start; sample_index < max; sample_index += resampler->channels, kernel_index += resampler->kernel_step_size)
 			{
 				float kernel_value;
 
-				assert(kernel_index < CLOWNRESAMPLER_COUNT_OF(clownresampler_lanczos_kernel_table));
+				CLOWNRESAMPLER_ASSERT(kernel_index < CLOWNRESAMPLER_COUNT_OF(clownresampler_lanczos_kernel_table));
 
 				/* The distance between the frames being output and the frames being read is the parameter to the Lanczos kernel. */
 				kernel_value = clownresampler_lanczos_kernel_table[kernel_index];
@@ -427,7 +450,7 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_S
 	ClownResampler_LowLevel_SetResamplingRatio(&resampler->low_level, input_sample_rate, output_sample_rate);
 
 	/* Blank the width of the kernel's diameter to zero, since there won't be previous data to occupy it yet. */
-	memset(resampler->input_buffer, 0, resampler->low_level.integer_stretched_kernel_radius * resampler->low_level.channels * 2 * sizeof(*resampler->input_buffer));
+	CLOWNRESAMPLER_MEMSET(resampler->input_buffer, 0, resampler->low_level.integer_stretched_kernel_radius * resampler->low_level.channels * 2 * sizeof(*resampler->input_buffer));
 
 	/* Initialise the pointers to point to the middle of the first (and newly-initialised) kernel. */
 	resampler->input_buffer_start = resampler->input_buffer_end = resampler->input_buffer + resampler->low_level.integer_stretched_kernel_radius * resampler->low_level.channels;
@@ -457,7 +480,7 @@ CLOWNRESAMPLER_API size_t ClownResampler_HighLevel_Resample(ClownResampler_HighL
 
 			/* Move the end of the last batch of data to the start of the buffer */
 			/* (memcpy won't work here since the copy may overlap). */
-			memmove(resampler->input_buffer, resampler->input_buffer_end - radius_in_samples, double_radius_in_samples * sizeof(*resampler->input_buffer));
+			CLOWNRESAMPLER_MEMMOVE(resampler->input_buffer, resampler->input_buffer_end - radius_in_samples, double_radius_in_samples * sizeof(*resampler->input_buffer));
 
 			/* Obtain input frames (note that the new frames start after the frames we just copied). */
 			resampler->input_buffer_start = resampler->input_buffer + radius_in_samples;
