@@ -99,7 +99,9 @@ extern "C" {
 
 /* Low-level API.
    This API has lower overhead, but is more difficult to use, requiring that
-   audio be pre-processed before resampling. */
+   audio be pre-processed before resampling.
+   Do NOT mix low-level API calls with high-level API calls for the same
+   resampler! */
 
 typedef struct ClownResampler_LowLevel_State
 {
@@ -146,7 +148,9 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 
 
 /* High-level API.
-   This API has more overhead, but is easier to use. */
+   This API has more overhead, but is easier to use.
+   Do NOT mix high-level API calls with low-level API calls for the same
+   resampler! */
 
 typedef struct ClownResampler_HighLevel_State
 {
