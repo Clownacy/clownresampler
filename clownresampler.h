@@ -116,9 +116,11 @@ typedef struct ClownResampler_LowLevel_State
 } ClownResampler_LowLevel_State;
 
 /* Initialises a low-level resampler. This function must be called before the
-   state is passed to any other functions. By default, the output sample rate
-   will be the same as the input). */
-CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_State *resampler, unsigned int channels);
+   state is passed to any other functions. The sample rate parameters don't
+   actually have to match the sample rates being used - they just need to
+   provide the ratio between the two (for example, 1 and 2 works just as well
+   as 22050 and 44100). */
+CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_State *resampler, unsigned int channels, unsigned long input_sample_rate, unsigned long output_sample_rate);
 
 /* Sets the ratio of the resampler. The parameters don't actually have to match
    the sample rates being used - they just need to provide the ratio between
@@ -297,7 +299,7 @@ static void ClownResampler_PrecalculateKernel(void)
 
 /* Low-level API */
 
-CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_State *resampler, unsigned int channels)
+CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_State *resampler, unsigned int channels, unsigned long input_sample_rate, unsigned long output_sample_rate)
 {
 	/* TODO - This is a bit of a hack - come up with something better. */
 	if (!clownresampler_lanczos_kernel_table_generated)
@@ -313,7 +315,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_Sta
 	resampler->channels = channels;
 	resampler->position_integer = 0;
 	resampler->position_fractional = 0;
-	ClownResampler_LowLevel_SetResamplingRatio(resampler, 1, 1); /* A nice sane default */
+	ClownResampler_LowLevel_SetResamplingRatio(resampler, input_sample_rate, output_sample_rate);
 }
 
 static unsigned long ClownResampler_CalculateRatio(unsigned long a, unsigned long b)
@@ -459,8 +461,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 
 CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_State *resampler, unsigned int channels, unsigned long input_sample_rate, unsigned long output_sample_rate)
 {
-	ClownResampler_LowLevel_Init(&resampler->low_level, channels);
-	ClownResampler_LowLevel_SetResamplingRatio(&resampler->low_level, input_sample_rate, output_sample_rate);
+	ClownResampler_LowLevel_Init(&resampler->low_level, channels, input_sample_rate, output_sample_rate);
 
 	/* Blank the width of the kernel's diameter to zero, since there won't be previous data to occupy it yet. */
 	CLOWNRESAMPLER_MEMSET(resampler->input_buffer, 0, resampler->low_level.integer_stretched_kernel_radius * resampler->low_level.channels * 2 * sizeof(*resampler->input_buffer));
