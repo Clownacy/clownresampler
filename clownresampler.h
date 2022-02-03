@@ -348,14 +348,15 @@ static unsigned long ClownResampler_CalculateRatio(unsigned long a, unsigned lon
 
 CLOWNRESAMPLER_API void ClownResampler_LowLevel_SetResamplingRatio(ClownResampler_LowLevel_State *resampler, unsigned long input_sample_rate, unsigned long output_sample_rate)
 {
-	const unsigned long ratio = ClownResampler_CalculateRatio(input_sample_rate, output_sample_rate);
-	const unsigned long inverse_ratio = ClownResampler_CalculateRatio(output_sample_rate, input_sample_rate);
+	const unsigned long output_to_input_ratio = ClownResampler_CalculateRatio(input_sample_rate, output_sample_rate);
+	const unsigned long input_to_output_ratio = ClownResampler_CalculateRatio(output_sample_rate, input_sample_rate);
 
 	/* TODO - Freak-out if the ratio is so high that the kernel radius would exceed the size of the input buffer */
-	const unsigned long kernel_scale = CLOWNRESAMPLER_MAX(CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(1), ratio);
-	const unsigned long inverse_kernel_scale = CLOWNRESAMPLER_MIN(CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(1), inverse_ratio);
+	/* Stretch the kernel if we're downsampling, in order to perform low-pass filtering. */
+	const unsigned long kernel_scale = CLOWNRESAMPLER_MAX(CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(1), output_to_input_ratio);
+	const unsigned long inverse_kernel_scale = CLOWNRESAMPLER_MIN(CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(1), input_to_output_ratio);
 
-	resampler->increment = ratio;
+	resampler->increment = output_to_input_ratio;
 	resampler->stretched_kernel_radius = CLOWNRESAMPLER_KERNEL_RADIUS * kernel_scale;
 	resampler->integer_stretched_kernel_radius = CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEIL(resampler->stretched_kernel_radius);
 	resampler->stretched_kernel_radius_delta = CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(resampler->integer_stretched_kernel_radius) - resampler->stretched_kernel_radius;
