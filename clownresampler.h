@@ -84,7 +84,7 @@ PERFORMANCE OF THIS SOFTWARE.
 /* The maximum number of channels supported by the resampler.
    This will likely be removed in the future. */
 #ifndef CLOWNRESAMPLER_MAXIMUM_CHANNELS
-#define CLOWNRESAMPLER_MAXIMUM_CHANNELS 2
+#define CLOWNRESAMPLER_MAXIMUM_CHANNELS 16 /* As stb_vorbis says, this should be enough for pretty much everyone. */
 #endif
 
 
