@@ -119,7 +119,8 @@ typedef struct ClownResampler_LowLevel_State
    state is passed to any other functions. The sample rate parameters don't
    actually have to match the sample rates being used - they just need to
    provide the ratio between the two (for example, 1 and 2 works just as well
-   as 22050 and 44100). */
+   as 22050 and 44100). The 'channels' parameter must not be larger than
+   CLOWNRESAMPLER_MAXIMUM_CHANNELS. */
 CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_State *resampler, unsigned int channels, unsigned long input_sample_rate, unsigned long output_sample_rate);
 
 /* Sets the ratio of the resampler. The parameters don't actually have to match
@@ -167,7 +168,8 @@ typedef struct ClownResampler_HighLevel_State
    state is passed to any other functions. The sample rate parameters don't
    actually have to match the sample rates being used - they just need to
    provide the ratio between the two (for example, 1 and 2 works just as well
-   as 22050 and 44100). */
+   as 22050 and 44100). The 'channels' parameter must not be larger than
+   CLOWNRESAMPLER_MAXIMUM_CHANNELS. */
 CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_State *resampler, unsigned int channels, unsigned long input_sample_rate, unsigned long output_sample_rate);
 
 /* Resamples audio. This function returns when either the output buffer is
