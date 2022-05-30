@@ -107,12 +107,12 @@ typedef struct ClownResampler_LowLevel_State
 {
 	unsigned int channels;
 	size_t position_integer;
-	unsigned long position_fractional;            /* 16.16 fixed point */
-	unsigned long increment;                      /* 16.16 fixed point */
+	unsigned long position_fractional;            /* 16.16 fixed point. */
+	unsigned long increment;                      /* 16.16 fixed point. */
 	long inverse_kernel_scale;                    /* 16.16 fixed point. Used to normalise the resampled samples. */
-	size_t stretched_kernel_radius;               /* 16.16 fixed point */
+	size_t stretched_kernel_radius;               /* 16.16 fixed point. */
 	size_t integer_stretched_kernel_radius;
-	size_t stretched_kernel_radius_delta;         /* 16.16 fixed point */
+	size_t stretched_kernel_radius_delta;         /* 16.16 fixed point. */
 	size_t kernel_step_size;
 } ClownResampler_LowLevel_State;
 
@@ -277,7 +277,7 @@ static double ClownResampler_LanczosKernel(double x)
 {
 	const double kernel_radius = (double)CLOWNRESAMPLER_KERNEL_RADIUS;
 
-	const double x_times_pi = x * 3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679; /* 100 digits should be good enough */
+	const double x_times_pi = x * 3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679; /* 100 digits should be good enough. */
 	const double x_times_pi_divided_by_radius = x_times_pi / kernel_radius;
 
 	/*CLOWNRESAMPLER_ASSERT(x != 0.0);*/
@@ -300,7 +300,7 @@ static void ClownResampler_PrecalculateKernel(void)
 }
 
 
-/* Low-level API */
+/* Low-Level API */
 
 CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_State *resampler, unsigned int channels, unsigned long input_sample_rate, unsigned long output_sample_rate)
 {
@@ -312,7 +312,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_Sta
 		ClownResampler_PrecalculateKernel();
 	}
 
-	/* TODO - We really should just return here */
+	/* TODO - We really should just return here. */
 	CLOWNRESAMPLER_ASSERT(channels <= CLOWNRESAMPLER_MAXIMUM_CHANNELS);
 
 	resampler->channels = channels;
@@ -356,7 +356,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_SetResamplingRatio(ClownResample
 	const unsigned long output_to_input_ratio = ClownResampler_CalculateRatio(input_sample_rate, output_sample_rate);
 	const unsigned long input_to_output_ratio = ClownResampler_CalculateRatio(output_sample_rate, input_sample_rate);
 
-	/* TODO - Freak-out if the ratio is so high that the kernel radius would exceed the size of the input buffer */
+	/* TODO - Freak-out if the ratio is so high that the kernel radius would exceed the size of the input buffer. */
 	/* Stretch the kernel if we're downsampling, in order to perform low-pass filtering. */
 	const unsigned long kernel_scale = CLOWNRESAMPLER_MAX(CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(1), output_to_input_ratio);
 	const unsigned long inverse_kernel_scale = CLOWNRESAMPLER_MIN(CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(1), input_to_output_ratio);
@@ -399,7 +399,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 			unsigned int current_channel;
 			size_t sample_index, kernel_index;
 
-			long samples[CLOWNRESAMPLER_MAXIMUM_CHANNELS] = {0}; /* Sample accumulators */
+			long samples[CLOWNRESAMPLER_MAXIMUM_CHANNELS] = {0}; /* Sample accumulators. */
 
 			/* Calculate the bounds of the kernel convolution. */
 			const size_t min_relative = CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEIL(resampler->position_fractional + resampler->stretched_kernel_radius_delta);
@@ -459,7 +459,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 }
 
 
-/* High-level API */
+/* High-Level API */
 
 CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_State *resampler, unsigned int channels, unsigned long input_sample_rate, unsigned long output_sample_rate)
 {
