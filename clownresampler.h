@@ -109,11 +109,11 @@ typedef struct ClownResampler_LowLevel_State
 	size_t position_integer;
 	unsigned long position_fractional;            /* 16.16 fixed point */
 	unsigned long increment;                      /* 16.16 fixed point */
+	unsigned long inverse_kernel_scale;           /* 16.16 fixed point. Used to normalise the resampled samples. */
 	size_t stretched_kernel_radius;               /* 16.16 fixed point */
 	size_t integer_stretched_kernel_radius;
 	size_t stretched_kernel_radius_delta;         /* 16.16 fixed point */
 	size_t kernel_step_size;
-	float inverse_kernel_scale;                   /* Used to normalise the resampled samples. */
 } ClownResampler_LowLevel_State;
 
 /* Initialises a low-level resampler. This function must be called before the
@@ -270,7 +270,7 @@ CLOWNRESAMPLER_API size_t ClownResampler_HighLevel_Resample(ClownResampler_HighL
 #define CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(a, b) ((a) * (b) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
 
 /* TODO - Maybe have an option for a precomputed kernel here in the code? */
-static float clownresampler_lanczos_kernel_table[CLOWNRESAMPLER_KERNEL_RADIUS * 2 * CLOWNRESAMPLER_KERNEL_RESOLUTION];
+static long clownresampler_lanczos_kernel_table[CLOWNRESAMPLER_KERNEL_RADIUS * 2 * CLOWNRESAMPLER_KERNEL_RESOLUTION];
 static int clownresampler_lanczos_kernel_table_generated = 0;
 
 static double ClownResampler_LanczosKernel(double x)
@@ -296,7 +296,7 @@ static void ClownResampler_PrecalculateKernel(void)
 	size_t i;
 
 	for (i = 0; i < CLOWNRESAMPLER_COUNT_OF(clownresampler_lanczos_kernel_table); ++i)
-		clownresampler_lanczos_kernel_table[i] = (float)ClownResampler_LanczosKernel(((double)i / (double)CLOWNRESAMPLER_COUNT_OF(clownresampler_lanczos_kernel_table) * 2.0 - 1.0) * (double)CLOWNRESAMPLER_KERNEL_RADIUS);
+		clownresampler_lanczos_kernel_table[i] = (long)CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(ClownResampler_LanczosKernel(((double)i / (double)CLOWNRESAMPLER_COUNT_OF(clownresampler_lanczos_kernel_table) * 2.0 - 1.0) * (double)CLOWNRESAMPLER_KERNEL_RADIUS));
 }
 
 
@@ -367,7 +367,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_SetResamplingRatio(ClownResample
 	resampler->stretched_kernel_radius_delta = CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(resampler->integer_stretched_kernel_radius) - resampler->stretched_kernel_radius;
 	CLOWNRESAMPLER_ASSERT(resampler->stretched_kernel_radius_delta < CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(1));
 	resampler->kernel_step_size = CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(CLOWNRESAMPLER_KERNEL_RESOLUTION, inverse_kernel_scale);
-	resampler->inverse_kernel_scale = CLOWNRESAMPLER_MIN(1.0f, (float)output_sample_rate / (float)input_sample_rate);
+	resampler->inverse_kernel_scale = inverse_kernel_scale;
 }
 
 CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const short *input_buffer, size_t *total_input_frames, short *output_buffer, size_t *total_output_frames)
@@ -396,7 +396,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 			unsigned int current_channel;
 			size_t sample_index, kernel_index;
 
-			float samples[CLOWNRESAMPLER_MAXIMUM_CHANNELS] = {0.0f}; /* Sample accumulators */
+			long samples[CLOWNRESAMPLER_MAXIMUM_CHANNELS] = {0}; /* Sample accumulators */
 
 			/* Calculate the bounds of the kernel convolution. */
 			const size_t min_relative = CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEIL(resampler->position_fractional + resampler->stretched_kernel_radius_delta);
@@ -413,7 +413,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 
 			for (sample_index = min, kernel_index = kernel_start; sample_index < max; sample_index += resampler->channels, kernel_index += resampler->kernel_step_size)
 			{
-				float kernel_value;
+				long kernel_value;
 
 				CLOWNRESAMPLER_ASSERT(kernel_index < CLOWNRESAMPLER_COUNT_OF(clownresampler_lanczos_kernel_table));
 
@@ -422,21 +422,22 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 
 				/* Modulate the samples with the kernel and add them to the accumulators. */
 				for (current_channel = 0; current_channel < resampler->channels; ++current_channel)
-					samples[current_channel] += (float)input_buffer[sample_index + current_channel] * kernel_value;
+					samples[current_channel] += CLOWNRESAMPLER_FIXED_POINT_MULTIPLY((long)input_buffer[sample_index + current_channel], kernel_value);
 			}
 
 			/* Normalise, clamp, and output the samples. */
 			for (current_channel = 0; current_channel < resampler->channels; ++current_channel)
 			{
-				float sample = samples[current_channel];
+				long sample = samples[current_channel];
 
 				/* Normalise. */
 				/* The wider the kernel, the greater the number of taps, the louder the sample. */
-				sample *= resampler->inverse_kernel_scale;
+				sample = CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(sample, resampler->inverse_kernel_scale);
 
 				/* Clamp. */
 				/* Ideally this wouldn't be needed, but aliasing and/or rounding error in the Lanczos kernel necessitate it. */
-				sample = CLOWNRESAMPLER_CLAMP(sample, -32767.0f, 32767.0f);
+				/*sample = CLOWNRESAMPLER_CLAMP(sample, -0x7FFF, 0x7FFF);*/
+				CLOWNRESAMPLER_ASSERT(sample >= -0x7FFF && sample <= 0x7FFF);
 
 				/* Output. */
 				*output_buffer_pointer++ = (short)sample;
