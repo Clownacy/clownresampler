@@ -96,6 +96,21 @@ PERFORMANCE OF THIS SOFTWARE.
 extern "C" {
 #endif
 
+/* Common API.
+   This API is used for both the low-level and high-level APIs. */
+
+typedef struct ClownResampler_Precomputed
+{
+	long lanczos_kernel_table[CLOWNRESAMPLER_KERNEL_RADIUS * 2 * CLOWNRESAMPLER_KERNEL_RESOLUTION];
+} ClownResampler_Precomputed;
+
+/* Precomputes some data to improve the performance of the resampler.
+   Multiple resamplers can use the same 'ClownResampler_Precomputed'.
+   The output of this function is always the same, so if you want to avoid
+   calling this function, then you could dump the contents of the struct and
+   then insert a const 'ClownResampler_Precomputed' in your source code. */
+CLOWNRESAMPLER_API void ClownResampler_Precompute(ClownResampler_Precomputed *precomputed);
+
 
 /* Low-level API.
    This API has lower overhead, but is more difficult to use, requiring that
@@ -148,7 +163,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_SetResamplingRatio(ClownResample
    Likewise, the 'total_output_frames' parameter will contain the number of
    frames in the output buffer that were not filled with resampled audio data.
 */
-CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const short *input_buffer, size_t *total_input_frames, short *output_buffer, size_t *total_output_frames);
+CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const ClownResampler_Precomputed *precomputed, const short *input_buffer, size_t *total_input_frames, short *output_buffer, size_t *total_output_frames);
 
 
 /* High-level API.
@@ -213,7 +228,7 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_S
 
    'user_data'
    An arbitrary pointer that is passed to the 'pull_callback' function. */
-CLOWNRESAMPLER_API size_t ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, short *output_buffer, size_t total_output_frames, size_t(*pull_callback)(void *user_data, short *buffer, size_t buffer_size), void *user_data);
+CLOWNRESAMPLER_API size_t ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, short *output_buffer, size_t total_output_frames, size_t(*pull_callback)(void *user_data, short *buffer, size_t buffer_size), void *user_data);
 
 #ifdef __cplusplus
 }
@@ -269,10 +284,6 @@ CLOWNRESAMPLER_API size_t ClownResampler_HighLevel_Resample(ClownResampler_HighL
 #define CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEIL(x) (((x) + (CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE - 1)) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
 #define CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(a, b) ((a) * (b) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
 
-/* TODO - Maybe have an option for a precomputed kernel here in the code? */
-static long clownresampler_lanczos_kernel_table[CLOWNRESAMPLER_KERNEL_RADIUS * 2 * CLOWNRESAMPLER_KERNEL_RESOLUTION];
-static int clownresampler_lanczos_kernel_table_generated = 0;
-
 static double ClownResampler_LanczosKernel(double x)
 {
 	const double kernel_radius = (double)CLOWNRESAMPLER_KERNEL_RADIUS;
@@ -291,12 +302,15 @@ static double ClownResampler_LanczosKernel(double x)
 	return (CLOWNRESAMPLER_SIN(x_times_pi) * CLOWNRESAMPLER_SIN(x_times_pi_divided_by_radius)) / (x_times_pi * x_times_pi_divided_by_radius);
 }
 
-static void ClownResampler_PrecalculateKernel(void)
+
+/* Common API */
+
+CLOWNRESAMPLER_API void ClownResampler_Precompute(ClownResampler_Precomputed *precomputed)
 {
 	size_t i;
 
-	for (i = 0; i < CLOWNRESAMPLER_COUNT_OF(clownresampler_lanczos_kernel_table); ++i)
-		clownresampler_lanczos_kernel_table[i] = (long)CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(ClownResampler_LanczosKernel(((double)i / (double)CLOWNRESAMPLER_COUNT_OF(clownresampler_lanczos_kernel_table) * 2.0 - 1.0) * (double)CLOWNRESAMPLER_KERNEL_RADIUS));
+	for (i = 0; i < CLOWNRESAMPLER_COUNT_OF(precomputed->lanczos_kernel_table); ++i)
+		precomputed->lanczos_kernel_table[i] = (long)CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(ClownResampler_LanczosKernel(((double)i / (double)CLOWNRESAMPLER_COUNT_OF(precomputed->lanczos_kernel_table) * 2.0 - 1.0) * (double)CLOWNRESAMPLER_KERNEL_RADIUS));
 }
 
 
@@ -304,14 +318,6 @@ static void ClownResampler_PrecalculateKernel(void)
 
 CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_State *resampler, unsigned int channels, unsigned long input_sample_rate, unsigned long output_sample_rate)
 {
-	/* TODO - This is a bit of a hack - come up with something better. */
-	if (!clownresampler_lanczos_kernel_table_generated)
-	{
-		clownresampler_lanczos_kernel_table_generated = 1;
-
-		ClownResampler_PrecalculateKernel();
-	}
-
 	/* TODO - We really should just return here. */
 	CLOWNRESAMPLER_ASSERT(channels <= CLOWNRESAMPLER_MAXIMUM_CHANNELS);
 
@@ -373,7 +379,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_SetResamplingRatio(ClownResample
 	resampler->inverse_kernel_scale = (long)inverse_kernel_scale;
 }
 
-CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const short *input_buffer, size_t *total_input_frames, short *output_buffer, size_t *total_output_frames)
+CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const ClownResampler_Precomputed *precomputed, const short *input_buffer, size_t *total_input_frames, short *output_buffer, size_t *total_output_frames)
 {
 	short *output_buffer_pointer = output_buffer;
 	short *output_buffer_end = output_buffer + *total_output_frames * resampler->channels;
@@ -418,10 +424,10 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 			{
 				long kernel_value;
 
-				CLOWNRESAMPLER_ASSERT(kernel_index < CLOWNRESAMPLER_COUNT_OF(clownresampler_lanczos_kernel_table));
+				CLOWNRESAMPLER_ASSERT(kernel_index < CLOWNRESAMPLER_COUNT_OF(precomputed->lanczos_kernel_table));
 
 				/* The distance between the frames being output and the frames being read is the parameter to the Lanczos kernel. */
-				kernel_value = clownresampler_lanczos_kernel_table[kernel_index];
+				kernel_value = precomputed->lanczos_kernel_table[kernel_index];
 
 				/* Modulate the samples with the kernel and add them to the accumulators. */
 				for (current_channel = 0; current_channel < resampler->channels; ++current_channel)
@@ -472,7 +478,7 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_S
 	resampler->input_buffer_start = resampler->input_buffer_end = resampler->input_buffer + resampler->low_level.integer_stretched_kernel_radius * resampler->low_level.channels;
 }
 
-CLOWNRESAMPLER_API size_t ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, short *output_buffer, size_t total_output_frames, size_t(*pull_callback)(void *user_data, short *buffer, size_t buffer_size), void *user_data)
+CLOWNRESAMPLER_API size_t ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, short *output_buffer, size_t total_output_frames, size_t(*pull_callback)(void *user_data, short *buffer, size_t buffer_size), void *user_data)
 {
 	short *output_buffer_start = output_buffer;
 	short *output_buffer_end = output_buffer_start + total_output_frames * resampler->low_level.channels;
@@ -510,7 +516,7 @@ CLOWNRESAMPLER_API size_t ClownResampler_HighLevel_Resample(ClownResampler_HighL
 		/* Call the actual resampler. */
 		input_frames = (resampler->input_buffer_end - resampler->input_buffer_start) / resampler->low_level.channels;
 		output_frames = (output_buffer_end - output_buffer_start) / resampler->low_level.channels;
-		ClownResampler_LowLevel_Resample(&resampler->low_level, resampler->input_buffer_start - radius_in_samples, &input_frames, output_buffer_start, &output_frames);
+		ClownResampler_LowLevel_Resample(&resampler->low_level, precomputed, resampler->input_buffer_start - radius_in_samples, &input_frames, output_buffer_start, &output_frames);
 
 		/* Increment input and output pointers. */
 		resampler->input_buffer_start = resampler->input_buffer_end - input_frames * resampler->low_level.channels;
