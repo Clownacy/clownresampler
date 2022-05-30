@@ -113,6 +113,7 @@ typedef struct ClownResampler_LowLevel_State
 	size_t integer_stretched_kernel_radius;
 	size_t stretched_kernel_radius_delta;         /* 16.16 fixed point */
 	size_t kernel_step_size;
+	float inverse_kernel_scale;                   /* Used to normalise the resampled samples. */
 } ClownResampler_LowLevel_State;
 
 /* Initialises a low-level resampler. This function must be called before the
@@ -366,6 +367,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_SetResamplingRatio(ClownResample
 	resampler->stretched_kernel_radius_delta = CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(resampler->integer_stretched_kernel_radius) - resampler->stretched_kernel_radius;
 	CLOWNRESAMPLER_ASSERT(resampler->stretched_kernel_radius_delta < CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(1));
 	resampler->kernel_step_size = CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(CLOWNRESAMPLER_KERNEL_RESOLUTION, inverse_kernel_scale);
+	resampler->inverse_kernel_scale = CLOWNRESAMPLER_MIN(1.0f, (float)output_sample_rate / (float)input_sample_rate);
 }
 
 CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const short *input_buffer, size_t *total_input_frames, short *output_buffer, size_t *total_output_frames)
@@ -396,8 +398,6 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 
 			float samples[CLOWNRESAMPLER_MAXIMUM_CHANNELS] = {0.0f}; /* Sample accumulators */
 
-			float normaliser = 0.0f;
-
 			/* Calculate the bounds of the kernel convolution. */
 			const size_t min_relative = CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEIL(resampler->position_fractional + resampler->stretched_kernel_radius_delta);
 			const size_t min = (resampler->position_integer + min_relative) * resampler->channels;
@@ -420,16 +420,10 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 				/* The distance between the frames being output and the frames being read is the parameter to the Lanczos kernel. */
 				kernel_value = clownresampler_lanczos_kernel_table[kernel_index];
 
-				/* Kernel values are essentially percentages, so sum them now so that we can divide by them later in order to normalise the sample. */
-				normaliser += kernel_value;
-
 				/* Modulate the samples with the kernel and add them to the accumulators. */
 				for (current_channel = 0; current_channel < resampler->channels; ++current_channel)
 					samples[current_channel] += (float)input_buffer[sample_index + current_channel] * kernel_value;
 			}
-
-			/* Invert the normalisation value so that we can multiply against it instead of divide for a slight speed boost. */
-			normaliser = 1.0f / normaliser;
 
 			/* Normalise, clamp, and output the samples. */
 			for (current_channel = 0; current_channel < resampler->channels; ++current_channel)
@@ -437,7 +431,8 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 				float sample = samples[current_channel];
 
 				/* Normalise. */
-				sample *= normaliser;
+				/* The wider the kernel, the greater the number of taps, the louder the sample. */
+				sample *= resampler->inverse_kernel_scale;
 
 				/* Clamp. */
 				/* Ideally this wouldn't be needed, but aliasing and/or rounding error in the Lanczos kernel necessitate it. */
