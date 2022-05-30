@@ -109,7 +109,7 @@ typedef struct ClownResampler_LowLevel_State
 	size_t position_integer;
 	unsigned long position_fractional;            /* 16.16 fixed point */
 	unsigned long increment;                      /* 16.16 fixed point */
-	unsigned long inverse_kernel_scale;           /* 16.16 fixed point. Used to normalise the resampled samples. */
+	long inverse_kernel_scale;                    /* 16.16 fixed point. Used to normalise the resampled samples. */
 	size_t stretched_kernel_radius;               /* 16.16 fixed point */
 	size_t integer_stretched_kernel_radius;
 	size_t stretched_kernel_radius_delta;         /* 16.16 fixed point */
@@ -367,7 +367,10 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_SetResamplingRatio(ClownResample
 	resampler->stretched_kernel_radius_delta = CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(resampler->integer_stretched_kernel_radius) - resampler->stretched_kernel_radius;
 	CLOWNRESAMPLER_ASSERT(resampler->stretched_kernel_radius_delta < CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(1));
 	resampler->kernel_step_size = CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(CLOWNRESAMPLER_KERNEL_RESOLUTION, inverse_kernel_scale);
-	resampler->inverse_kernel_scale = inverse_kernel_scale;
+
+	/* Note that the scale is cast to 'long' here. This is to prevent samples from being promoted to
+	   'unsigned long' later on, which breaks their sign-extension. */
+	resampler->inverse_kernel_scale = (long)inverse_kernel_scale;
 }
 
 CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const short *input_buffer, size_t *total_input_frames, short *output_buffer, size_t *total_output_frames)
@@ -428,19 +431,20 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 			/* Normalise, clamp, and output the samples. */
 			for (current_channel = 0; current_channel < resampler->channels; ++current_channel)
 			{
-				long sample = samples[current_channel];
+				const long sample = samples[current_channel];
 
 				/* Normalise. */
 				/* The wider the kernel, the greater the number of taps, the louder the sample. */
-				sample = CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(sample, resampler->inverse_kernel_scale);
+				const long normalised_sample = CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(sample, resampler->inverse_kernel_scale);
 
 				/* Clamp. */
 				/* Ideally this wouldn't be needed, but aliasing and/or rounding error in the Lanczos kernel necessitate it. */
 				/*sample = CLOWNRESAMPLER_CLAMP(sample, -0x7FFF, 0x7FFF);*/
-				CLOWNRESAMPLER_ASSERT(sample >= -0x7FFF && sample <= 0x7FFF);
+				/* Now that the resampler is integer-only again, maybe clamping isn't needed. */
+				CLOWNRESAMPLER_ASSERT(normalised_sample >= -0x7FFF && normalised_sample <= 0x7FFF);
 
 				/* Output. */
-				*output_buffer_pointer++ = (short)sample;
+				*output_buffer_pointer++ = (short)normalised_sample;
 			}
 
 			/* Increment input buffer position. */
