@@ -332,6 +332,10 @@ static unsigned long ClownResampler_CalculateRatio(unsigned long a, unsigned lon
 	/* HAHAHA, I NEVER THOUGHT LONG DIVISION WOULD ACTUALLY COME IN HANDY! */
 	unsigned long upper, middle, lower, result;
 
+	/* A hack to prevent crashes when either sample rate is 0. Effectively causes playback to freeze. */
+	if (a == 0 || b == 0)
+		return 0;
+
 	/* As well as splitting the number into chunks of CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE
 	   size, this sneakily also multiplies it by CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE. */
 	upper = a / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE;
