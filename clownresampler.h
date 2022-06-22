@@ -275,9 +275,9 @@ CLOWNRESAMPLER_API size_t ClownResampler_HighLevel_Resample(ClownResampler_HighL
 #define CLOWNRESAMPLER_COUNT_OF(x) (sizeof(x) / sizeof(*(x)))
 #define CLOWNRESAMPLER_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define CLOWNRESAMPLER_MAX(a, b) ((a) > (b) ? (a) : (b))
-#define CLOWNRESAMPLER_CLAMP(x, min, max) (CLOWNRESAMPLER_MIN((max), CLOWNRESAMPLER_MAX((min), (x))))
+#define CLOWNRESAMPLER_CLAMP(min, max, x) (CLOWNRESAMPLER_MAX((min), CLOWNRESAMPLER_MIN((max), (x))))
 
-#define CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE 0x10000 /* For 16.16. This is good because it reduces multiplications and divisions to mere bit-shifts. */
+#define CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE (1 << 16) /* For 16.16. This is good because it reduces multiplications and divisions to mere bit-shifts. */
 #define CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(x) ((x) * CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
 #define CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_FLOOR(x) ((x) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
 #define CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_ROUND(x) (((x) + (CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE / 2)) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
@@ -449,7 +449,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 
 				/* Clamp. */
 				/* Ideally this wouldn't be needed, but aliasing and/or rounding error in the Lanczos kernel necessitate it. */
-				const long clamped_sample = CLOWNRESAMPLER_CLAMP(normalised_sample, -0x7FFF, 0x7FFF);
+				const long clamped_sample = CLOWNRESAMPLER_CLAMP(-0x7FFF, 0x7FFF, normalised_sample);
 
 				/* Output. */
 				*output_buffer_pointer++ = (short)clamped_sample;
