@@ -124,7 +124,7 @@ typedef struct ClownResampler_LowLevel_State
 	size_t position_integer;
 	unsigned long position_fractional;            /* 16.16 fixed point. */
 	unsigned long increment;                      /* 16.16 fixed point. */
-	long sample_normaliser;                       /* 16.16 fixed point. */
+	long sample_normaliser;                       /* 17.15 fixed point. */
 	size_t stretched_kernel_radius;               /* 16.16 fixed point. */
 	size_t integer_stretched_kernel_radius;
 	size_t stretched_kernel_radius_delta;         /* 16.16 fixed point. */
@@ -376,8 +376,9 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_SetResamplingRatio(ClownResample
 
 	/* The wider the kernel, the greater the number of taps, the louder the sample. */
 	/* Note that the scale is cast to 'long' here. This is to prevent samples from being promoted to
-	   'unsigned long' later on, which breaks their sign-extension. */
-	resampler->sample_normaliser = (long)inverse_kernel_scale;
+	   'unsigned long' later on, which breaks their sign-extension. Also note that we convert from
+	   16.16 to 17.15 here. */
+	resampler->sample_normaliser = (long)(inverse_kernel_scale >> (16 - 15));
 }
 
 CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const ClownResampler_Precomputed *precomputed, const short *input_buffer, size_t *total_input_frames, short *output_buffer, size_t *total_output_frames)
@@ -441,7 +442,10 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 				const long sample = samples[current_channel];
 
 				/* Normalise. */
-				const long normalised_sample = CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(sample, resampler->sample_normaliser);
+				/* Note that we use a 17.15 version of CLOWNRESAMPLER_FIXED_POINT_MULTIPLY here.
+				   This is because, if we used a 16.16 normaliser, then there's a chance that the result
+				   of the multiplication would overflow, causing popping. */
+				const long normalised_sample = (sample * resampler->sample_normaliser) / (1 << 15);
 
 				/* Clamp. */
 				/* Ideally this wouldn't be needed, but aliasing and/or rounding error in the Lanczos kernel necessitate it. */
