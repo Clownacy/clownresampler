@@ -445,12 +445,10 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 
 				/* Clamp. */
 				/* Ideally this wouldn't be needed, but aliasing and/or rounding error in the Lanczos kernel necessitate it. */
-				/*sample = CLOWNRESAMPLER_CLAMP(sample, -0x7FFF, 0x7FFF);*/
-				/* Now that the resampler is integer-only again, maybe clamping isn't needed. */
-				CLOWNRESAMPLER_ASSERT(normalised_sample >= -0x7FFF && normalised_sample <= 0x7FFF);
+				const long clamped_sample = CLOWNRESAMPLER_CLAMP(normalised_sample, -0x7FFF, 0x7FFF);
 
 				/* Output. */
-				*output_buffer_pointer++ = (short)normalised_sample;
+				*output_buffer_pointer++ = (short)clamped_sample;
 			}
 
 			/* Increment input buffer position. */
