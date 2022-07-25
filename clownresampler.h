@@ -248,7 +248,7 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_S
 
    'user_data'
    An arbitrary pointer that is passed to the 'pull_callback' function. */
-CLOWNRESAMPLER_API size_t ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, short *output_buffer, size_t total_output_frames, size_t(*pull_callback)(void *user_data, short *buffer, size_t buffer_size), void *user_data);
+CLOWNRESAMPLER_API size_t ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, short *output_buffer, size_t total_output_frames, size_t(*pull_callback)(const void *user_data, short *buffer, size_t buffer_size), const void *user_data);
 
 #ifdef __cplusplus
 }
@@ -508,7 +508,7 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_S
 	resampler->input_buffer_start = resampler->input_buffer_end = resampler->input_buffer + resampler->low_level.integer_stretched_kernel_radius * resampler->low_level.channels;
 }
 
-CLOWNRESAMPLER_API size_t ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, short *output_buffer, size_t total_output_frames, size_t(*pull_callback)(void *user_data, short *buffer, size_t buffer_size), void *user_data)
+CLOWNRESAMPLER_API size_t ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, short *output_buffer, size_t total_output_frames, size_t(*pull_callback)(const void *user_data, short *buffer, size_t buffer_size), const void *user_data)
 {
 	short *output_buffer_start = output_buffer;
 	short *output_buffer_end = output_buffer_start + total_output_frames * resampler->low_level.channels;
