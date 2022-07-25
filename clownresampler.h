@@ -57,15 +57,20 @@ OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 */
 
-#ifndef CLOWNRESAMPLER_H
-#define CLOWNRESAMPLER_H
+#ifndef CLOWNRESAMPLER_GUARD_MISC
+#define CLOWNRESAMPLER_GUARD_MISC
 
 
 /* Configuration */
 
-/* Define this as 'static' to limit the visibility of functions. */
-#ifndef CLOWNRESAMPLER_API 
-#define CLOWNRESAMPLER_API
+/* Define 'CLOWNRESAMPLER_STATIC' to limit the visibility of public functions. */
+/* Alternatively, define 'CLOWNRESAMPLER_API' to control the qualifiers applied to the public functions. */
+#ifndef CLOWNRESAMPLER_API
+ #ifdef CLOWNRESAMPLER_STATIC
+  #define CLOWNRESAMPLER_API static
+ #else
+  #define CLOWNRESAMPLER_API
+ #endif
 #endif
 
 /* Controls the number of 'lobes' of the windowed sinc function.
@@ -92,31 +97,10 @@ PERFORMANCE OF THIS SOFTWARE.
 
 #include <stddef.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/* Common API.
-   This API is used for both the low-level and high-level APIs. */
-
 typedef struct ClownResampler_Precomputed
 {
 	long lanczos_kernel_table[CLOWNRESAMPLER_KERNEL_RADIUS * 2 * CLOWNRESAMPLER_KERNEL_RESOLUTION];
 } ClownResampler_Precomputed;
-
-/* Precomputes some data to improve the performance of the resampler.
-   Multiple resamplers can use the same 'ClownResampler_Precomputed'.
-   The output of this function is always the same, so if you want to avoid
-   calling this function, then you could dump the contents of the struct and
-   then insert a const 'ClownResampler_Precomputed' in your source code. */
-CLOWNRESAMPLER_API void ClownResampler_Precompute(ClownResampler_Precomputed *precomputed);
-
-
-/* Low-level API.
-   This API has lower overhead, but is more difficult to use, requiring that
-   audio be pre-processed before resampling.
-   Do NOT mix low-level API calls with high-level API calls for the same
-   resampler! */
 
 typedef struct ClownResampler_LowLevel_State
 {
@@ -130,6 +114,46 @@ typedef struct ClownResampler_LowLevel_State
 	size_t stretched_kernel_radius_delta;         /* 16.16 fixed point. */
 	size_t kernel_step_size;
 } ClownResampler_LowLevel_State;
+
+typedef struct ClownResampler_HighLevel_State
+{
+	ClownResampler_LowLevel_State low_level;
+
+	short input_buffer[0x1000];
+	short *input_buffer_start;
+	short *input_buffer_end;
+} ClownResampler_HighLevel_State;
+
+#endif /* CLOWNRESAMPLER_GUARD_MISC */
+
+#if !defined(CLOWNRESAMPLER_STATIC) || defined(CLOWNRESAMPLER_IMPLEMENTATION)
+
+#ifndef CLOWNRESAMPLER_GUARD_FUNCTION_DECLARATIONS
+#define CLOWNRESAMPLER_GUARD_FUNCTION_DECLARATIONS
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+/* Common API.
+   This API is used for both the low-level and high-level APIs. */
+
+/* Precomputes some data to improve the performance of the resampler.
+   Multiple resamplers can use the same 'ClownResampler_Precomputed'.
+   The output of this function is always the same, so if you want to avoid
+   calling this function, then you could dump the contents of the struct and
+   then insert a const 'ClownResampler_Precomputed' in your source code. */
+CLOWNRESAMPLER_API void ClownResampler_Precompute(ClownResampler_Precomputed *precomputed);
+
+
+
+/* Low-level API.
+   This API has lower overhead, but is more difficult to use, requiring that
+   audio be pre-processed before resampling.
+   Do NOT mix low-level API calls with high-level API calls for the same
+   resampler! */
+
 
 /* Initialises a low-level resampler. This function must be called before the
    state is passed to any other functions. The sample rate parameters don't
@@ -166,19 +190,12 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_SetResamplingRatio(ClownResample
 CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const ClownResampler_Precomputed *precomputed, const short *input_buffer, size_t *total_input_frames, short *output_buffer, size_t *total_output_frames);
 
 
+
 /* High-level API.
    This API has more overhead, but is easier to use.
    Do NOT mix high-level API calls with low-level API calls for the same
    resampler! */
 
-typedef struct ClownResampler_HighLevel_State
-{
-	ClownResampler_LowLevel_State low_level;
-
-	short input_buffer[0x1000];
-	short *input_buffer_start;
-	short *input_buffer_end;
-} ClownResampler_HighLevel_State;
 
 /* Initialises a high-level resampler. This function must be called before the
    state is passed to any other functions. The sample rate parameters don't
@@ -234,15 +251,17 @@ CLOWNRESAMPLER_API size_t ClownResampler_HighLevel_Resample(ClownResampler_HighL
 }
 #endif
 
-#endif /* CLOWNRESAMPLER_H */
+#endif /* CLOWNRESAMPLER_GUARD_FUNCTION_DECLARATIONS */
+
+#endif /* !defined(CLOWNRESAMPLER_STATIC) || defined(CLOWNRESAMPLER_IMPLEMENTATION) */
 
 
 /* Implementation */
 
 #ifdef CLOWNRESAMPLER_IMPLEMENTATION
 
-#ifndef CLOWNRESAMPLER_IMPLEMENTATION_ONCE
-#define CLOWNRESAMPLER_IMPLEMENTATION_ONCE
+#ifndef CLOWNRESAMPLER_GUARD_FUNCTION_DEFINITIONS
+#define CLOWNRESAMPLER_GUARD_FUNCTION_DEFINITIONS
 
 /* These can be used to provide your own C standard library functions. */
 #ifndef CLOWNRESAMPLER_ASSERT
@@ -532,6 +551,6 @@ CLOWNRESAMPLER_API size_t ClownResampler_HighLevel_Resample(ClownResampler_HighL
 	return total_output_frames - (output_buffer_end - output_buffer_start) / resampler->low_level.channels;
 }
 
-#endif /* CLOWNRESAMPLER_IMPLEMENTATION_ONCE */
+#endif /* CLOWNRESAMPLER_GUARD_FUNCTION_DEFINITIONS */
 
 #endif /* CLOWNRESAMPLER_IMPLEMENTATION */
