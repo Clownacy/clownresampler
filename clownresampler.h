@@ -156,17 +156,19 @@ CLOWNRESAMPLER_API void ClownResampler_Precompute(ClownResampler_Precomputed *pr
 
 
 /* Initialises a low-level resampler. This function must be called before the
-   state is passed to any other functions. The sample rate parameters don't
+   state is passed to any other functions. The input and output sample rates
+   don't actually have to match the sample rates being used - they just need to
+   provide the ratio between the two (for example, 1 and 2 works just as well
+   as 22050 and 44100). Remember that a sample rate is double the frequency.
+   The 'channels' parameter must not be larger than
+   CLOWNRESAMPLER_MAXIMUM_CHANNELS. */
+CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_State *resampler, unsigned int channels, unsigned long input_sample_rate, unsigned long output_sample_rate, unsigned long low_pass_filter_sample_rate);
+
+/* Adjusts properties of the resampler. The input and output sample rates don't
    actually have to match the sample rates being used - they just need to
    provide the ratio between the two (for example, 1 and 2 works just as well
-   as 22050 and 44100). The 'channels' parameter must not be larger than
-   CLOWNRESAMPLER_MAXIMUM_CHANNELS. */
-CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_State *resampler, unsigned int channels, unsigned long input_sample_rate, unsigned long output_sample_rate);
-
-/* Sets the ratio of the resampler. The parameters don't actually have to match
-   the sample rates being used - they just need to provide the ratio between
-   the two (for example, 1 and 2 works just as well as 22050 and 44100). */
-CLOWNRESAMPLER_API void ClownResampler_LowLevel_SetResamplingRatio(ClownResampler_LowLevel_State *resampler, unsigned long input_sample_rate, unsigned long output_sample_rate);
+   as 22050 and 44100). Remember that a sample rate is double the frequency.*/
+CLOWNRESAMPLER_API void ClownResampler_LowLevel_Adjust(ClownResampler_LowLevel_State *resampler, unsigned long input_sample_rate, unsigned long output_sample_rate, unsigned long low_pass_filter_sample_rate);
 
 /* Resamples (pre-processed) audio. The 'total_input_frames' and
    'total_output_frames' parameters measure the size of their respective
@@ -198,12 +200,13 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 
 
 /* Initialises a high-level resampler. This function must be called before the
-   state is passed to any other functions. The sample rate parameters don't
-   actually have to match the sample rates being used - they just need to
+   state is passed to any other functions. The input and output sample rates
+   don't actually have to match the sample rates being used - they just need to
    provide the ratio between the two (for example, 1 and 2 works just as well
-   as 22050 and 44100). The 'channels' parameter must not be larger than
+   as 22050 and 44100). Remember that a sample rate is double the frequency.
+   The 'channels' parameter must not be larger than
    CLOWNRESAMPLER_MAXIMUM_CHANNELS. */
-CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_State *resampler, unsigned int channels, unsigned long input_sample_rate, unsigned long output_sample_rate);
+CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_State *resampler, unsigned int channels, unsigned long input_sample_rate, unsigned long output_sample_rate, unsigned long low_pass_filter_sample_rate);
 
 /* Resamples audio. This function returns when either the output buffer is
    full, or the input callback stops providing frames.
@@ -335,7 +338,7 @@ CLOWNRESAMPLER_API void ClownResampler_Precompute(ClownResampler_Precomputed *pr
 
 /* Low-Level API */
 
-CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_State *resampler, unsigned int channels, unsigned long input_sample_rate, unsigned long output_sample_rate)
+CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_State *resampler, unsigned int channels, unsigned long input_sample_rate, unsigned long output_sample_rate, unsigned long low_pass_filter_sample_rate)
 {
 	/* TODO - We really should just return here. */
 	CLOWNRESAMPLER_ASSERT(channels <= CLOWNRESAMPLER_MAXIMUM_CHANNELS);
@@ -343,7 +346,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_Sta
 	resampler->channels = channels;
 	resampler->position_integer = 0;
 	resampler->position_fractional = 0;
-	ClownResampler_LowLevel_SetResamplingRatio(resampler, input_sample_rate, output_sample_rate);
+	ClownResampler_LowLevel_Adjust(resampler, input_sample_rate, output_sample_rate, low_pass_filter_sample_rate);
 }
 
 static unsigned long ClownResampler_CalculateRatio(unsigned long a, unsigned long b)
@@ -380,15 +383,17 @@ static unsigned long ClownResampler_CalculateRatio(unsigned long a, unsigned lon
 	return result;
 }
 
-CLOWNRESAMPLER_API void ClownResampler_LowLevel_SetResamplingRatio(ClownResampler_LowLevel_State *resampler, unsigned long input_sample_rate, unsigned long output_sample_rate)
+CLOWNRESAMPLER_API void ClownResampler_LowLevel_Adjust(ClownResampler_LowLevel_State *resampler, unsigned long input_sample_rate, unsigned long output_sample_rate, unsigned long low_pass_filter_sample_rate)
 {
 	const unsigned long output_to_input_ratio = ClownResampler_CalculateRatio(input_sample_rate, output_sample_rate);
-	const unsigned long input_to_output_ratio = ClownResampler_CalculateRatio(output_sample_rate, input_sample_rate);
 
+	/* Determine the kernel scale. This is used to apply a low-pass filter. Not only is this something that the user may
+	   explicitly request, but it's needed when downsampling to avoid artefacts. */
+	/* Note that we do not ever want the kernel to be squished, but rather only stretched. */
 	/* TODO - Freak-out if the ratio is so high that the kernel radius would exceed the size of the input buffer. */
-	/* Stretch the kernel if we're downsampling, in order to perform low-pass filtering. */
-	const unsigned long kernel_scale = CLOWNRESAMPLER_MAX(CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(1), output_to_input_ratio);
-	const unsigned long inverse_kernel_scale = CLOWNRESAMPLER_MIN(CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(1), input_to_output_ratio);
+	const unsigned long actual_low_pass_sample_rate = CLOWNRESAMPLER_MIN(input_sample_rate, CLOWNRESAMPLER_MIN(output_sample_rate, low_pass_filter_sample_rate));
+	const unsigned long kernel_scale = ClownResampler_CalculateRatio(input_sample_rate, actual_low_pass_sample_rate);
+	const unsigned long inverse_kernel_scale = ClownResampler_CalculateRatio(actual_low_pass_sample_rate, input_sample_rate);
 
 	resampler->increment = output_to_input_ratio;
 	resampler->stretched_kernel_radius = CLOWNRESAMPLER_KERNEL_RADIUS * kernel_scale;
@@ -492,9 +497,9 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 
 /* High-Level API */
 
-CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_State *resampler, unsigned int channels, unsigned long input_sample_rate, unsigned long output_sample_rate)
+CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_State *resampler, unsigned int channels, unsigned long input_sample_rate, unsigned long output_sample_rate, unsigned long low_pass_filter_sample_rate)
 {
-	ClownResampler_LowLevel_Init(&resampler->low_level, channels, input_sample_rate, output_sample_rate);
+	ClownResampler_LowLevel_Init(&resampler->low_level, channels, input_sample_rate, output_sample_rate, low_pass_filter_sample_rate);
 
 	/* Blank the width of the kernel's diameter to zero, since there won't be previous data to occupy it yet. */
 	CLOWNRESAMPLER_MEMSET(resampler->input_buffer, 0, resampler->low_level.integer_stretched_kernel_radius * resampler->low_level.channels * 2 * sizeof(*resampler->input_buffer));
