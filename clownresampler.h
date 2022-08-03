@@ -189,7 +189,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Adjust(ClownResampler_LowLevel_S
    Likewise, the 'total_output_frames' parameter will contain the number of
    frames in the output buffer that were not filled with resampled audio data.
 */
-CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const ClownResampler_Precomputed *precomputed, const short *input_buffer, size_t *total_input_frames, short *output_buffer, size_t *total_output_frames);
+CLOWNRESAMPLER_API int ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const ClownResampler_Precomputed *precomputed, const short *input_buffer, size_t *total_input_frames, char (*output_callback)(const void *user_data, long *samples, unsigned int channels), const void *user_data);
 
 
 
@@ -248,7 +248,7 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_S
 
    'user_data'
    An arbitrary pointer that is passed to the 'pull_callback' function. */
-CLOWNRESAMPLER_API size_t ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, short *output_buffer, size_t total_output_frames, size_t(*pull_callback)(const void *user_data, short *buffer, size_t buffer_size), const void *user_data);
+CLOWNRESAMPLER_API void ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, size_t (*input_callback)(const void *user_data, short *buffer, size_t buffer_size), char (*output_callback)(const void *user_data, long *samples, unsigned int channels), const void *user_data);
 
 #ifdef __cplusplus
 }
@@ -409,11 +409,8 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Adjust(ClownResampler_LowLevel_S
 	resampler->sample_normaliser = (long)(inverse_kernel_scale >> (16 - 15));
 }
 
-CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const ClownResampler_Precomputed *precomputed, const short *input_buffer, size_t *total_input_frames, short *output_buffer, size_t *total_output_frames)
+CLOWNRESAMPLER_API int ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const ClownResampler_Precomputed *precomputed, const short *input_buffer, size_t *total_input_frames, char (*output_callback)(const void *user_data, long *samples, unsigned int channels), const void *user_data)
 {
-	short *output_buffer_pointer = output_buffer;
-	short *output_buffer_end = output_buffer + *total_output_frames * resampler->channels;
-
 	for (;;)
 	{
 		/* Check if we've reached the end of the input buffer. */
@@ -421,14 +418,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 		{
 			resampler->position_integer -= *total_input_frames;
 			*total_input_frames = 0;
-			break;
-		}
-		/* Check if we've reached the end of the output buffer. */
-		else if (output_buffer_pointer == output_buffer_end)
-		{
-			*total_input_frames -= resampler->position_integer;
-			resampler->position_integer = 0;
-			break;
+			return 1;
 		}
 		else
 		{
@@ -464,34 +454,30 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Resample(ClownResampler_LowLevel
 					samples[current_channel] += CLOWNRESAMPLER_FIXED_POINT_MULTIPLY((long)input_buffer[sample_index + current_channel], kernel_value);
 			}
 
-			/* Normalise, clamp, and output the samples. */
+			/* Normalise the samples. */
 			for (current_channel = 0; current_channel < resampler->channels; ++current_channel)
 			{
-				const long sample = samples[current_channel];
-
-				/* Normalise. */
 				/* Note that we use a 17.15 version of CLOWNRESAMPLER_FIXED_POINT_MULTIPLY here.
 				   This is because, if we used a 16.16 normaliser, then there's a chance that the result
 				   of the multiplication would overflow, causing popping. */
-				const long normalised_sample = (sample * resampler->sample_normaliser) / (1 << 15);
-
-				/* Clamp. */
-				/* Ideally this wouldn't be needed, but aliasing and/or rounding error in the Lanczos kernel necessitate it. */
-				const long clamped_sample = CLOWNRESAMPLER_CLAMP(-0x7FFF, 0x7FFF, normalised_sample);
-
-				/* Output. */
-				*output_buffer_pointer++ = (short)clamped_sample;
+				samples[current_channel] = (samples[current_channel] * resampler->sample_normaliser) / (1 << 15);
 			}
 
 			/* Increment input buffer position. */
 			resampler->position_fractional += resampler->increment;
 			resampler->position_integer += CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_FLOOR(resampler->position_fractional);
 			resampler->position_fractional %= CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE;
+
+			/* Output the samples. */
+			if (!output_callback(user_data, samples, resampler->channels))
+			{
+				/* We've reached the end of the output buffer. */
+				*total_input_frames -= resampler->position_integer;
+				resampler->position_integer = 0;
+				return 0;
+			}
 		}
 	}
-
-	/* Make 'total_output_frames' reflect how much space there is left in the output buffer. */
-	*total_output_frames -= (output_buffer_pointer - output_buffer) / resampler->channels;
 }
 
 
@@ -508,18 +494,15 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_S
 	resampler->input_buffer_start = resampler->input_buffer_end = resampler->input_buffer + resampler->low_level.integer_stretched_kernel_radius * resampler->low_level.channels;
 }
 
-CLOWNRESAMPLER_API size_t ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, short *output_buffer, size_t total_output_frames, size_t(*pull_callback)(const void *user_data, short *buffer, size_t buffer_size), const void *user_data)
+CLOWNRESAMPLER_API void ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, size_t (*input_callback)(const void *user_data, short *buffer, size_t buffer_size), char (*output_callback)(const void *user_data, long *samples, unsigned int channels), const void *user_data)
 {
-	short *output_buffer_start = output_buffer;
-	short *output_buffer_end = output_buffer_start + total_output_frames * resampler->low_level.channels;
+	int reached_end_of_output_buffer = 0;
 
-	/* If we've run out of room in the output buffer, quit. */
-	while (output_buffer_start != output_buffer_end)
+	do
 	{
 		const size_t radius_in_samples = resampler->low_level.integer_stretched_kernel_radius * resampler->low_level.channels;
 
 		size_t input_frames;
-		size_t output_frames;
 
 		/* If the input buffer is empty, refill it. */
 		if (resampler->input_buffer_start == resampler->input_buffer_end)
@@ -536,7 +519,7 @@ CLOWNRESAMPLER_API size_t ClownResampler_HighLevel_Resample(ClownResampler_HighL
 
 			/* Obtain input frames (note that the new frames start after the frames we just copied). */
 			resampler->input_buffer_start = resampler->input_buffer + radius_in_samples;
-			resampler->input_buffer_end = resampler->input_buffer_start + pull_callback(user_data, resampler->input_buffer + double_radius_in_samples, (CLOWNRESAMPLER_COUNT_OF(resampler->input_buffer) - double_radius_in_samples) / resampler->low_level.channels) * resampler->low_level.channels;
+			resampler->input_buffer_end = resampler->input_buffer_start + input_callback(user_data, resampler->input_buffer + double_radius_in_samples, (CLOWNRESAMPLER_COUNT_OF(resampler->input_buffer) - double_radius_in_samples) / resampler->low_level.channels) * resampler->low_level.channels;
 
 			/* If the callback returns 0, then we must have reached the end of the input data, so quit. */
 			if (resampler->input_buffer_start == resampler->input_buffer_end)
@@ -545,15 +528,11 @@ CLOWNRESAMPLER_API size_t ClownResampler_HighLevel_Resample(ClownResampler_HighL
 
 		/* Call the actual resampler. */
 		input_frames = (resampler->input_buffer_end - resampler->input_buffer_start) / resampler->low_level.channels;
-		output_frames = (output_buffer_end - output_buffer_start) / resampler->low_level.channels;
-		ClownResampler_LowLevel_Resample(&resampler->low_level, precomputed, resampler->input_buffer_start - radius_in_samples, &input_frames, output_buffer_start, &output_frames);
+		reached_end_of_output_buffer = ClownResampler_LowLevel_Resample(&resampler->low_level, precomputed, resampler->input_buffer_start - radius_in_samples, &input_frames, output_callback, user_data);
 
 		/* Increment input and output pointers. */
 		resampler->input_buffer_start = resampler->input_buffer_end - input_frames * resampler->low_level.channels;
-		output_buffer_start = output_buffer_end - output_frames * resampler->low_level.channels;
-	}
-
-	return total_output_frames - (output_buffer_end - output_buffer_start) / resampler->low_level.channels;
+	} while (!reached_end_of_output_buffer);
 }
 
 #endif /* CLOWNRESAMPLER_GUARD_FUNCTION_DEFINITIONS */
