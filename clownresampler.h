@@ -186,18 +186,17 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Adjust(ClownResampler_LowLevel_S
 
    'output_callback' is a callback for outputting a single completed frame.
    'frame' points to a series of samples corresponding a frame of audio.
-   'channels' is the number of samples in the frame, which will always match
-   the value that was passed to 'ClownResampler_HighLevel_Init'. Must return 0
-   if no more frames are needed, in which case this function terminates. The
-   'user_data' parameter is the same as the 'user_data' parameter of this
-   function.
+   'total_samples' is the number of samples in the frame, which will always
+   match the number of channels that was passed to
+   'ClownResampler_LowLevel_Init'. Must return 0 if no more frames are needed,
+   in which case this function terminates. The 'user_data' parameter is the
+   same as the 'user_data' parameter of this function.
 
    After this function returns, the 'total_input_frames' parameter will
    contain the number of frames in the input buffer that were not processed.
 
    This function will return 1 if it terminated because it ran out of input
-   samples, or 0 if it terminated because the callback returned 0.
-*/
+   samples, or 0 if it terminated because the callback returned 0. */
 CLOWNRESAMPLER_API int ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const ClownResampler_Precomputed *precomputed, const short *input_buffer, size_t *total_input_frames, char (*output_callback)(const void *user_data, const long *frame, unsigned int total_samples), const void *user_data);
 
 
@@ -248,7 +247,7 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_S
 
    A callback for retrieving frames of the input audio. The callback must
    write frames to the buffer pointed to by the 'buffer' parameter. The
-   'buffer_size' parameter specifies the maximum number of frames that can be
+   'total_frames' parameter specifies the maximum number of frames that can be
    written to the buffer. The callback must return the number of frames that
    were written to the buffer. If the callback returns 0, then this function
    terminates. The 'user_data' parameter is the same as the 'user_data'
@@ -257,12 +256,14 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_S
 
    'output_callback'
 
-   A callback for outputting a single completed frame. 'frame' points to a
-   series of samples corresponding a frame of audio. 'channels' is the number
-   of samples in the frame, which will always match the value that was passed
-   to 'ClownResampler_HighLevel_Init'. Must return 0 if no more frames are
-   needed, in which case this function terminates. The 'user_data' parameter is
-   the same as the 'user_data' parameter of this function.
+
+   A callback for outputting a single completed frame. frame' points to a
+   series of samples corresponding a frame of audio. 'total_samples' is the
+   number of samples in the frame, which will always match the number of
+   channels that was passed to 'ClownResampler_HighLevel_Init'. Must return 0
+   if no more frames are needed, in which case this function terminates. The
+   'user_data' parameter is the same as the 'user_data' parameter of this
+   function.
 
 
    'user_data'
