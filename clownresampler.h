@@ -184,12 +184,21 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Adjust(ClownResampler_LowLevel_S
    of audio, otherwise these frames should just be 0. Note that these padding
    frames must not be counted by the 'total_input_frames' parameter.
 
+   'output_callback' is a callback for outputting a single completed frame.
+   'frame' points to a series of samples corresponding a frame of audio.
+   'channels' is the number of samples in the frame, which will always match
+   the value that was passed to 'ClownResampler_HighLevel_Init'. Must return 0
+   if no more frames are needed, in which case this function terminates. The
+   'user_data' parameter is the same as the 'user_data' parameter of this
+   function.
+
    After this function returns, the 'total_input_frames' parameter will
    contain the number of frames in the input buffer that were not processed.
-   Likewise, the 'total_output_frames' parameter will contain the number of
-   frames in the output buffer that were not filled with resampled audio data.
+
+   This function will return 1 if it terminated because it ran out of input
+   samples, or 0 if it terminated because the callback returned 0.
 */
-CLOWNRESAMPLER_API int ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const ClownResampler_Precomputed *precomputed, const short *input_buffer, size_t *total_input_frames, char (*output_callback)(const void *user_data, long *samples, unsigned int channels), const void *user_data);
+CLOWNRESAMPLER_API int ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const ClownResampler_Precomputed *precomputed, const short *input_buffer, size_t *total_input_frames, char (*output_callback)(const void *user_data, const long *frame, unsigned int channels), const void *user_data);
 
 
 
@@ -235,7 +244,7 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_S
    is measured in frames, not samples or bytes.
 
 
-   'pull_callback'
+   'input_callback'
 
    A callback for retrieving frames of the input audio. The callback must
    write frames to the buffer pointed to by the 'buffer' parameter. The
@@ -246,9 +255,19 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_S
    parameter of this function.
 
 
+   'output_callback'
+
+   A callback for outputting a single completed frame. 'frame' points to a
+   series of samples corresponding a frame of audio. 'channels' is the number
+   of samples in the frame, which will always match the value that was passed
+   to 'ClownResampler_HighLevel_Init'. Must return 0 if no more frames are
+   needed, in which case this function terminates. The 'user_data' parameter is
+   the same as the 'user_data' parameter of this function.
+
+
    'user_data'
-   An arbitrary pointer that is passed to the 'pull_callback' function. */
-CLOWNRESAMPLER_API void ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, size_t (*input_callback)(const void *user_data, short *buffer, size_t buffer_size), char (*output_callback)(const void *user_data, long *samples, unsigned int channels), const void *user_data);
+   An arbitrary pointer that is passed to the callback functions. */
+CLOWNRESAMPLER_API void ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, size_t (*input_callback)(const void *user_data, short *buffer, size_t buffer_size), char (*output_callback)(const void *user_data, const long *frame, unsigned int channels), const void *user_data);
 
 #ifdef __cplusplus
 }
@@ -409,7 +428,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Adjust(ClownResampler_LowLevel_S
 	resampler->sample_normaliser = (long)(inverse_kernel_scale >> (16 - 15));
 }
 
-CLOWNRESAMPLER_API int ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const ClownResampler_Precomputed *precomputed, const short *input_buffer, size_t *total_input_frames, char (*output_callback)(const void *user_data, long *samples, unsigned int channels), const void *user_data)
+CLOWNRESAMPLER_API int ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const ClownResampler_Precomputed *precomputed, const short *input_buffer, size_t *total_input_frames, char (*output_callback)(const void *user_data, const long *frame, unsigned int channels), const void *user_data)
 {
 	for (;;)
 	{
@@ -494,7 +513,7 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_S
 	resampler->input_buffer_start = resampler->input_buffer_end = resampler->input_buffer + resampler->low_level.integer_stretched_kernel_radius * resampler->low_level.channels;
 }
 
-CLOWNRESAMPLER_API void ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, size_t (*input_callback)(const void *user_data, short *buffer, size_t buffer_size), char (*output_callback)(const void *user_data, long *samples, unsigned int channels), const void *user_data)
+CLOWNRESAMPLER_API void ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, size_t (*input_callback)(const void *user_data, short *buffer, size_t buffer_size), char (*output_callback)(const void *user_data, const long *frame, unsigned int channels), const void *user_data)
 {
 	int reached_end_of_output_buffer = 0;
 
