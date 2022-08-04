@@ -547,7 +547,7 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Resample(ClownResampler_HighLev
 
 		/* Call the actual resampler. */
 		input_frames = (resampler->input_buffer_end - resampler->input_buffer_start) / resampler->low_level.channels;
-		reached_end_of_output_buffer = ClownResampler_LowLevel_Resample(&resampler->low_level, precomputed, resampler->input_buffer_start - radius_in_samples, &input_frames, output_callback, user_data);
+		reached_end_of_output_buffer = ClownResampler_LowLevel_Resample(&resampler->low_level, precomputed, resampler->input_buffer_start - radius_in_samples, &input_frames, output_callback, user_data) == 0;
 
 		/* Increment input and output pointers. */
 		resampler->input_buffer_start = resampler->input_buffer_end - input_frames * resampler->low_level.channels;
