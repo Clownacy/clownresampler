@@ -464,18 +464,154 @@ int main(int argc, char **argv)
 
 #include <stddef.h>
 
+/* Integer types. */
+#ifndef CC_INTEGERS_DEFINED
+#define CC_INTEGERS_DEFINED
+
+#if defined(CC_USE_C99_INTEGERS)
+ /* Use C99's/C++11's better integer types if available. */
+#include <stdint.h>
+
+typedef int_least8_t cc_s8l;
+typedef int_least16_t cc_s16l;
+typedef int_least32_t cc_s32l;
+
+typedef uint_least8_t cc_u8l;
+typedef uint_least16_t cc_u16l;
+typedef uint_least32_t cc_u32l;
+
+typedef int_fast8_t cc_s8f;
+typedef int_fast16_t cc_s16f;
+typedef int_fast32_t cc_s32f;
+
+typedef uint_fast8_t cc_u8f;
+typedef uint_fast16_t cc_u16f;
+typedef uint_fast32_t cc_u32f;
+
+#define CC_PRIdLEAST8 PRIdLEAST8
+#define CC_PRIiLEAST8 PRIiLEAST8
+#define CC_PRIuLEAST8 PRIuLEAST8
+#define CC_PRIoLEAST8 PRIoLEAST8
+#define CC_PRIxLEAST8 PRIxLEAST8
+#define CC_PRIXLEAST8 PRIXLEAST8
+
+#define CC_PRIdLEAST16 PRIdLEAST16
+#define CC_PRIiLEAST16 PRIiLEAST16
+#define CC_PRIuLEAST16 PRIuLEAST16
+#define CC_PRIoLEAST16 PRIoLEAST16
+#define CC_PRIxLEAST16 PRIxLEAST16
+#define CC_PRIXLEAST16 PRIXLEAST16
+
+#define CC_PRIdLEAST32 PRIdLEAST32
+#define CC_PRIiLEAST32 PRIiLEAST32
+#define CC_PRIuLEAST32 PRIuLEAST32
+#define CC_PRIoLEAST32 PRIoLEAST32
+#define CC_PRIxLEAST32 PRIxLEAST32
+#define CC_PRIXLEAST32 PRIXLEAST32
+
+#define CC_PRIdFAST8 PRIdFAST8
+#define CC_PRIiFAST8 PRIiFAST8
+#define CC_PRIuFAST8 PRIuFAST8
+#define CC_PRIoFAST8 PRIoFAST8
+#define CC_PRIxFAST8 PRIxFAST8
+#define CC_PRIXFAST8 PRIXFAST8
+
+#define CC_PRIdFAST16 PRIdFAST16
+#define CC_PRIiFAST16 PRIiFAST16
+#define CC_PRIuFAST16 PRIuFAST16
+#define CC_PRIoFAST16 PRIoFAST16
+#define CC_PRIxFAST16 PRIxFAST16
+#define CC_PRIXFAST16 PRIXFAST16
+
+#define CC_PRIdFAST32 PRIdFAST32
+#define CC_PRIiFAST32 PRIiFAST32
+#define CC_PRIuFAST32 PRIuFAST32
+#define CC_PRIoFAST32 PRIoFAST32
+#define CC_PRIxFAST32 PRIxFAST32
+#define CC_PRIXFAST32 PRIXFAST32
+#else
+ /* Fall back on C89's/C++98's dumb types. */
+typedef signed char cc_s8l;
+typedef signed short cc_s16l;
+typedef signed long cc_s32l;
+
+typedef unsigned char cc_u8l;
+typedef unsigned short cc_u16l;
+typedef unsigned long cc_u32l;
+
+typedef signed int cc_s8f;
+typedef signed int cc_s16f;
+typedef signed long cc_s32f;
+
+typedef unsigned int cc_u8f;
+typedef unsigned int cc_u16f;
+typedef unsigned long cc_u32f;
+
+#define CC_PRIdLEAST8 "%d"
+#define CC_PRIiLEAST8 "%i"
+#define CC_PRIuLEAST8 "%u"
+#define CC_PRIoLEAST8 "%o"
+#define CC_PRIxLEAST8 "%x"
+#define CC_PRIXLEAST8 "%X"
+
+#define CC_PRIdLEAST16 "%d"
+#define CC_PRIiLEAST16 "%i"
+#define CC_PRIuLEAST16 "%u"
+#define CC_PRIoLEAST16 "%o"
+#define CC_PRIxLEAST16 "%x"
+#define CC_PRIXLEAST16 "%X"
+
+#define CC_PRIdLEAST32 "%ld"
+#define CC_PRIiLEAST32 "%li"
+#define CC_PRIuLEAST32 "%lu"
+#define CC_PRIoLEAST32 "%lo"
+#define CC_PRIxLEAST32 "%lx"
+#define CC_PRIXLEAST32 "%lX"
+
+#define CC_PRIdFAST8 "%d"
+#define CC_PRIiFAST8 "%i"
+#define CC_PRIuFAST8 "%u"
+#define CC_PRIoFAST8 "%o"
+#define CC_PRIxFAST8 "%x"
+#define CC_PRIXFAST8 "%X"
+
+#define CC_PRIdFAST16 "%d"
+#define CC_PRIiFAST16 "%i"
+#define CC_PRIuFAST16 "%u"
+#define CC_PRIoFAST16 "%o"
+#define CC_PRIxFAST16 "%x"
+#define CC_PRIXFAST16 "%X"
+
+#define CC_PRIdFAST32 "%ld"
+#define CC_PRIiFAST32 "%li"
+#define CC_PRIuFAST32 "%lu"
+#define CC_PRIoFAST32 "%lo"
+#define CC_PRIxFAST32 "%lx"
+#define CC_PRIXFAST32 "%lX"
+#endif
+
+/* Boolean. */
+typedef cc_u8l cc_bool;
+enum
+{
+	cc_false = 0,
+	cc_true = 1
+};
+
+#endif
+
 typedef struct ClownResampler_Precomputed
 {
-	long lanczos_kernel_table[CLOWNRESAMPLER_KERNEL_RADIUS * 2 * CLOWNRESAMPLER_KERNEL_RESOLUTION];
+	cc_s32l lanczos_kernel_table[CLOWNRESAMPLER_KERNEL_RADIUS * 2 * CLOWNRESAMPLER_KERNEL_RESOLUTION];
 } ClownResampler_Precomputed;
 
 typedef struct ClownResampler_LowLevel_State
 {
-	unsigned int channels;
+	cc_u8f channels;
 	size_t position_integer;
-	unsigned long position_fractional;            /* 16.16 fixed point. */
-	unsigned long increment;                      /* 16.16 fixed point. */
-	long sample_normaliser;                       /* 17.15 fixed point. */
+	cc_u32f position_fractional;      /* 16.16 fixed point. */
+	cc_u32f increment;                /* 16.16 fixed point. */
+	cc_s32f sample_normaliser;        /* 17.15 fixed point. */
 	size_t stretched_kernel_radius;               /* 16.16 fixed point. */
 	size_t integer_stretched_kernel_radius;
 	size_t stretched_kernel_radius_delta;         /* 16.16 fixed point. */
@@ -486,9 +622,9 @@ typedef struct ClownResampler_HighLevel_State
 {
 	ClownResampler_LowLevel_State low_level;
 
-	short input_buffer[0x1000];
-	short *input_buffer_start;
-	short *input_buffer_end;
+	cc_s16l input_buffer[0x1000];
+	cc_s16l *input_buffer_start;
+	cc_s16l *input_buffer_end;
 } ClownResampler_HighLevel_State;
 
 #endif /* CLOWNRESAMPLER_GUARD_MISC */
@@ -529,13 +665,13 @@ CLOWNRESAMPLER_API void ClownResampler_Precompute(ClownResampler_Precomputed *pr
    as 22050 and 44100). Remember that a sample rate is double the frequency.
    The 'channels' parameter must not be larger than
    CLOWNRESAMPLER_MAXIMUM_CHANNELS. */
-CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_State *resampler, unsigned int channels, unsigned long input_sample_rate, unsigned long output_sample_rate, unsigned long low_pass_filter_sample_rate);
+CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_State *resampler, cc_u8f channels, cc_u32f input_sample_rate, cc_u32f output_sample_rate, cc_u32f low_pass_filter_sample_rate);
 
 /* Adjusts properties of the resampler. The input and output sample rates don't
    actually have to match the sample rates being used - they just need to
    provide the ratio between the two (for example, 1 and 2 works just as well
    as 22050 and 44100). Remember that a sample rate is double the frequency.*/
-CLOWNRESAMPLER_API void ClownResampler_LowLevel_Adjust(ClownResampler_LowLevel_State *resampler, unsigned long input_sample_rate, unsigned long output_sample_rate, unsigned long low_pass_filter_sample_rate);
+CLOWNRESAMPLER_API void ClownResampler_LowLevel_Adjust(ClownResampler_LowLevel_State *resampler, cc_u32f input_sample_rate, cc_u32f output_sample_rate, cc_u32f low_pass_filter_sample_rate);
 
 /* Resamples (pre-processed) audio. The 'total_input_frames' and
    'total_output_frames' parameters measure the size of their respective
@@ -564,7 +700,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Adjust(ClownResampler_LowLevel_S
 
    This function will return 1 if it terminated because it ran out of input
    samples, or 0 if it terminated because the callback returned 0. */
-CLOWNRESAMPLER_API int ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const ClownResampler_Precomputed *precomputed, const short *input_buffer, size_t *total_input_frames, char (*output_callback)(const void *user_data, const long *frame, unsigned int total_samples), const void *user_data);
+CLOWNRESAMPLER_API cc_bool ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const ClownResampler_Precomputed *precomputed, const cc_s16l *input_buffer, size_t *total_input_frames, cc_bool (*output_callback)(const void *user_data, const cc_s32f *frame, cc_u16f total_samples), const void *user_data);
 
 
 
@@ -581,7 +717,7 @@ CLOWNRESAMPLER_API int ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_
    as 22050 and 44100). Remember that a sample rate is double the frequency.
    The 'channels' parameter must not be larger than
    CLOWNRESAMPLER_MAXIMUM_CHANNELS. */
-CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_State *resampler, unsigned int channels, unsigned long input_sample_rate, unsigned long output_sample_rate, unsigned long low_pass_filter_sample_rate);
+CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_State *resampler, cc_u8f channels, cc_u32f input_sample_rate, cc_u32f output_sample_rate, cc_u32f low_pass_filter_sample_rate);
 
 /* Resamples audio. This function returns when either the output buffer is
    full, or the input callback stops providing frames.
@@ -635,7 +771,7 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_S
 
    'user_data'
    An arbitrary pointer that is passed to the callback functions. */
-CLOWNRESAMPLER_API void ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, size_t (*input_callback)(const void *user_data, short *buffer, size_t total_frames), char (*output_callback)(const void *user_data, const long *frame, unsigned int total_samples), const void *user_data);
+CLOWNRESAMPLER_API void ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, size_t (*input_callback)(const void *user_data, cc_s16l *buffer, size_t total_frames), cc_bool (*output_callback)(const void *user_data, const cc_s32f *frame, cc_u16f total_samples), const void *user_data);
 
 #ifdef __cplusplus
 }
@@ -719,13 +855,13 @@ CLOWNRESAMPLER_API void ClownResampler_Precompute(ClownResampler_Precomputed *pr
 	size_t i;
 
 	for (i = 0; i < CLOWNRESAMPLER_COUNT_OF(precomputed->lanczos_kernel_table); ++i)
-		precomputed->lanczos_kernel_table[i] = (long)CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(ClownResampler_LanczosKernel(((double)i / (double)CLOWNRESAMPLER_COUNT_OF(precomputed->lanczos_kernel_table) * 2.0 - 1.0) * (double)CLOWNRESAMPLER_KERNEL_RADIUS));
+		precomputed->lanczos_kernel_table[i] = (cc_s32l)CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(ClownResampler_LanczosKernel(((double)i / (double)CLOWNRESAMPLER_COUNT_OF(precomputed->lanczos_kernel_table) * 2.0 - 1.0) * (double)CLOWNRESAMPLER_KERNEL_RADIUS));
 }
 
 
 /* Low-Level API */
 
-CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_State *resampler, unsigned int channels, unsigned long input_sample_rate, unsigned long output_sample_rate, unsigned long low_pass_filter_sample_rate)
+CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_State *resampler, cc_u8f channels, cc_u32f input_sample_rate, cc_u32f output_sample_rate, cc_u32f low_pass_filter_sample_rate)
 {
 	/* TODO - We really should just return here. */
 	CLOWNRESAMPLER_ASSERT(channels <= CLOWNRESAMPLER_MAXIMUM_CHANNELS);
@@ -736,10 +872,10 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_Sta
 	ClownResampler_LowLevel_Adjust(resampler, input_sample_rate, output_sample_rate, low_pass_filter_sample_rate);
 }
 
-static unsigned long ClownResampler_CalculateRatio(unsigned long a, unsigned long b)
+static cc_u32f ClownResampler_CalculateRatio(cc_u32f a, cc_u32f b)
 {
 	/* HAHAHA, I NEVER THOUGHT LONG DIVISION WOULD ACTUALLY COME IN HANDY! */
-	unsigned long upper, middle, lower, result;
+	cc_u32f upper, middle, lower, result;
 
 	/* A hack to prevent crashes when either sample rate is 0. Effectively causes playback to freeze. */
 	if (a == 0 || b == 0)
@@ -770,17 +906,17 @@ static unsigned long ClownResampler_CalculateRatio(unsigned long a, unsigned lon
 	return result;
 }
 
-CLOWNRESAMPLER_API void ClownResampler_LowLevel_Adjust(ClownResampler_LowLevel_State *resampler, unsigned long input_sample_rate, unsigned long output_sample_rate, unsigned long low_pass_filter_sample_rate)
+CLOWNRESAMPLER_API void ClownResampler_LowLevel_Adjust(ClownResampler_LowLevel_State *resampler, cc_u32f input_sample_rate, cc_u32f output_sample_rate, cc_u32f low_pass_filter_sample_rate)
 {
-	const unsigned long output_to_input_ratio = ClownResampler_CalculateRatio(input_sample_rate, output_sample_rate);
+	const cc_u32f output_to_input_ratio = ClownResampler_CalculateRatio(input_sample_rate, output_sample_rate);
 
 	/* Determine the kernel scale. This is used to apply a low-pass filter. Not only is this something that the user may
 	   explicitly request, but it's needed when downsampling to avoid artefacts. */
 	/* Note that we do not ever want the kernel to be squished, but rather only stretched. */
 	/* TODO - Freak-out if the ratio is so high that the kernel radius would exceed the size of the input buffer. */
-	const unsigned long actual_low_pass_sample_rate = CLOWNRESAMPLER_MIN(input_sample_rate, CLOWNRESAMPLER_MIN(output_sample_rate, low_pass_filter_sample_rate));
-	const unsigned long kernel_scale = ClownResampler_CalculateRatio(input_sample_rate, actual_low_pass_sample_rate);
-	const unsigned long inverse_kernel_scale = ClownResampler_CalculateRatio(actual_low_pass_sample_rate, input_sample_rate);
+	const cc_u32f actual_low_pass_sample_rate = CLOWNRESAMPLER_MIN(input_sample_rate, CLOWNRESAMPLER_MIN(output_sample_rate, low_pass_filter_sample_rate));
+	const cc_u32f kernel_scale = ClownResampler_CalculateRatio(input_sample_rate, actual_low_pass_sample_rate);
+	const cc_u32f inverse_kernel_scale = ClownResampler_CalculateRatio(actual_low_pass_sample_rate, input_sample_rate);
 
 	resampler->increment = output_to_input_ratio;
 	resampler->stretched_kernel_radius = CLOWNRESAMPLER_KERNEL_RADIUS * kernel_scale;
@@ -793,10 +929,10 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Adjust(ClownResampler_LowLevel_S
 	/* Note that the scale is cast to 'long' here. This is to prevent samples from being promoted to
 	   'unsigned long' later on, which breaks their sign-extension. Also note that we convert from
 	   16.16 to 17.15 here. */
-	resampler->sample_normaliser = (long)(inverse_kernel_scale >> (16 - 15));
+	resampler->sample_normaliser = (cc_s32f)(inverse_kernel_scale >> (16 - 15));
 }
 
-CLOWNRESAMPLER_API int ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const ClownResampler_Precomputed *precomputed, const short *input_buffer, size_t *total_input_frames, char (*output_callback)(const void *user_data, const long *frame, unsigned int total_samples), const void *user_data)
+CLOWNRESAMPLER_API cc_bool ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const ClownResampler_Precomputed *precomputed, const cc_s16l *input_buffer, size_t *total_input_frames, cc_bool (*output_callback)(const void *user_data, const cc_s32f *frame, cc_u16f total_samples), const void *user_data)
 {
 	for (;;)
 	{
@@ -805,14 +941,14 @@ CLOWNRESAMPLER_API int ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_
 		{
 			resampler->position_integer -= *total_input_frames;
 			*total_input_frames = 0;
-			return 1;
+			return cc_true;
 		}
 		else
 		{
-			unsigned int current_channel;
+			cc_u8f current_channel;
 			size_t sample_index, kernel_index;
 
-			long samples[CLOWNRESAMPLER_MAXIMUM_CHANNELS] = {0}; /* Sample accumulators. */
+			cc_s32f samples[CLOWNRESAMPLER_MAXIMUM_CHANNELS] = {0}; /* Sample accumulators. */
 
 			/* Calculate the bounds of the kernel convolution. */
 			const size_t min_relative = CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEIL(resampler->position_fractional + resampler->stretched_kernel_radius_delta);
@@ -829,16 +965,16 @@ CLOWNRESAMPLER_API int ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_
 
 			for (sample_index = min, kernel_index = kernel_start; sample_index < max; sample_index += resampler->channels, kernel_index += resampler->kernel_step_size)
 			{
-				long kernel_value;
+				cc_s32f kernel_value;
 
 				CLOWNRESAMPLER_ASSERT(kernel_index < CLOWNRESAMPLER_COUNT_OF(precomputed->lanczos_kernel_table));
 
 				/* The distance between the frames being output and the frames being read is the parameter to the Lanczos kernel. */
-				kernel_value = precomputed->lanczos_kernel_table[kernel_index];
+				kernel_value = (cc_s32f)precomputed->lanczos_kernel_table[kernel_index];
 
 				/* Modulate the samples with the kernel and add them to the accumulators. */
 				for (current_channel = 0; current_channel < resampler->channels; ++current_channel)
-					samples[current_channel] += CLOWNRESAMPLER_FIXED_POINT_MULTIPLY((long)input_buffer[sample_index + current_channel], kernel_value);
+					samples[current_channel] += CLOWNRESAMPLER_FIXED_POINT_MULTIPLY((cc_s32f)input_buffer[sample_index + current_channel], kernel_value);
 			}
 
 			/* Normalise the samples. */
@@ -861,7 +997,7 @@ CLOWNRESAMPLER_API int ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_
 				/* We've reached the end of the output buffer. */
 				*total_input_frames -= resampler->position_integer;
 				resampler->position_integer = 0;
-				return 0;
+				return cc_false;
 			}
 		}
 	}
@@ -870,7 +1006,7 @@ CLOWNRESAMPLER_API int ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_
 
 /* High-Level API */
 
-CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_State *resampler, unsigned int channels, unsigned long input_sample_rate, unsigned long output_sample_rate, unsigned long low_pass_filter_sample_rate)
+CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_State *resampler, cc_u8f channels, cc_u32f input_sample_rate, cc_u32f output_sample_rate, cc_u32f low_pass_filter_sample_rate)
 {
 	ClownResampler_LowLevel_Init(&resampler->low_level, channels, input_sample_rate, output_sample_rate, low_pass_filter_sample_rate);
 
@@ -881,9 +1017,9 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_S
 	resampler->input_buffer_start = resampler->input_buffer_end = resampler->input_buffer + resampler->low_level.integer_stretched_kernel_radius * resampler->low_level.channels;
 }
 
-CLOWNRESAMPLER_API void ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, size_t (*input_callback)(const void *user_data, short *buffer, size_t total_frames), char (*output_callback)(const void *user_data, const long *frame, unsigned int total_samples), const void *user_data)
+CLOWNRESAMPLER_API void ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, size_t (*input_callback)(const void *user_data, cc_s16l *buffer, size_t total_frames), cc_bool (*output_callback)(const void *user_data, const cc_s32f *frame, cc_u16f total_samples), const void *user_data)
 {
-	int reached_end_of_output_buffer = 0;
+	cc_bool reached_end_of_output_buffer = cc_false;
 
 	do
 	{
