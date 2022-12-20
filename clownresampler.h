@@ -609,12 +609,12 @@ typedef struct ClownResampler_LowLevel_State
 {
 	cc_u8f channels;
 	size_t position_integer;
-	cc_u32f position_fractional;      /* 16.16 fixed point. */
-	cc_u32f increment;                /* 16.16 fixed point. */
-	cc_s32f sample_normaliser;        /* 17.15 fixed point. */
-	size_t stretched_kernel_radius;               /* 16.16 fixed point. */
+	cc_u32f position_fractional;            /* 16.16 fixed point. */
+	cc_u32f increment;                      /* 16.16 fixed point. */
+	cc_s32f sample_normaliser;              /* 17.15 fixed point. */
+	size_t stretched_kernel_radius;         /* 16.16 fixed point. */
 	size_t integer_stretched_kernel_radius;
-	size_t stretched_kernel_radius_delta;         /* 16.16 fixed point. */
+	size_t stretched_kernel_radius_delta;   /* 16.16 fixed point. */
 	size_t kernel_step_size;
 } ClownResampler_LowLevel_State;
 
@@ -700,7 +700,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Adjust(ClownResampler_LowLevel_S
 
    This function will return 1 if it terminated because it ran out of input
    samples, or 0 if it terminated because the callback returned 0. */
-CLOWNRESAMPLER_API cc_bool ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const ClownResampler_Precomputed *precomputed, const cc_s16l *input_buffer, size_t *total_input_frames, cc_bool (*output_callback)(const void *user_data, const cc_s32f *frame, cc_u16f total_samples), const void *user_data);
+CLOWNRESAMPLER_API cc_bool ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const ClownResampler_Precomputed *precomputed, const cc_s16l *input_buffer, size_t *total_input_frames, cc_bool (*output_callback)(const void *user_data, const cc_s32f *frame, cc_u8f total_samples), const void *user_data);
 
 
 
@@ -771,7 +771,7 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_S
 
    'user_data'
    An arbitrary pointer that is passed to the callback functions. */
-CLOWNRESAMPLER_API void ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, size_t (*input_callback)(const void *user_data, cc_s16l *buffer, size_t total_frames), cc_bool (*output_callback)(const void *user_data, const cc_s32f *frame, cc_u16f total_samples), const void *user_data);
+CLOWNRESAMPLER_API void ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, size_t (*input_callback)(const void *user_data, cc_s16l *buffer, size_t total_frames), cc_bool (*output_callback)(const void *user_data, const cc_s32f *frame, cc_u8f total_samples), const void *user_data);
 
 #ifdef __cplusplus
 }
@@ -932,7 +932,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Adjust(ClownResampler_LowLevel_S
 	resampler->sample_normaliser = (cc_s32f)(inverse_kernel_scale >> (16 - 15));
 }
 
-CLOWNRESAMPLER_API cc_bool ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const ClownResampler_Precomputed *precomputed, const cc_s16l *input_buffer, size_t *total_input_frames, cc_bool (*output_callback)(const void *user_data, const cc_s32f *frame, cc_u16f total_samples), const void *user_data)
+CLOWNRESAMPLER_API cc_bool ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const ClownResampler_Precomputed *precomputed, const cc_s16l *input_buffer, size_t *total_input_frames, cc_bool (*output_callback)(const void *user_data, const cc_s32f *frame, cc_u8f total_samples), const void *user_data)
 {
 	for (;;)
 	{
@@ -1017,7 +1017,7 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_S
 	resampler->input_buffer_start = resampler->input_buffer_end = resampler->input_buffer + resampler->low_level.integer_stretched_kernel_radius * resampler->low_level.channels;
 }
 
-CLOWNRESAMPLER_API void ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, size_t (*input_callback)(const void *user_data, cc_s16l *buffer, size_t total_frames), cc_bool (*output_callback)(const void *user_data, const cc_s32f *frame, cc_u16f total_samples), const void *user_data)
+CLOWNRESAMPLER_API void ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, size_t (*input_callback)(const void *user_data, cc_s16l *buffer, size_t total_frames), cc_bool (*output_callback)(const void *user_data, const cc_s32f *frame, cc_u8f total_samples), const void *user_data)
 {
 	cc_bool reached_end_of_output_buffer = cc_false;
 
