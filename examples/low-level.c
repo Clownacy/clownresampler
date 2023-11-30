@@ -56,16 +56,16 @@ typedef struct ResamplerCallbackData
 	ma_uint32 output_buffer_frames_remaining;
 } ResamplerCallbackData;
 
-static char ResamplerOutputCallback(const void *user_data, const long *frame, unsigned int total_samples)
+static cc_bool ResamplerOutputCallback(const void *user_data, const cc_s32f *frame, cc_u8f total_samples)
 {
 	ResamplerCallbackData* const callback_data = (ResamplerCallbackData*)user_data;
 
-	unsigned int i;
+	cc_u8f i;
 
 	/* Output the frame. */
 	for (i = 0; i < total_samples; ++i)
 	{
-		long sample;
+		cc_s32f sample;
 
 		sample = frame[i];
 
