@@ -54,7 +54,7 @@ typedef struct ResamplerCallbackData
 	ma_uint32 output_buffer_frames_remaining;
 } ResamplerCallbackData;
 
-static size_t ResamplerInputCallback(const void *user_data, cc_s16l *buffer, size_t total_frames)
+static size_t ResamplerInputCallback(void *user_data, cc_s16l *buffer, size_t total_frames)
 {
 	(void)user_data;
 
@@ -62,7 +62,7 @@ static size_t ResamplerInputCallback(const void *user_data, cc_s16l *buffer, siz
 	return drmp3_read_pcm_frames_s16(&mp3_decoder, total_frames, buffer);
 }
 
-static cc_bool ResamplerOutputCallback(const void *user_data, const cc_s32f *frame, cc_u8f total_samples)
+static cc_bool ResamplerOutputCallback(void *user_data, const cc_s32f *frame, cc_u8f total_samples)
 {
 	ResamplerCallbackData* const callback_data = (ResamplerCallbackData*)user_data;
 

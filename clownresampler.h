@@ -79,7 +79,7 @@ typedef struct ResamplerCallbackData
 	ma_uint32 output_buffer_frames_remaining;
 } ResamplerCallbackData;
 
-static cc_bool ResamplerOutputCallback(const void *user_data, const cc_s32f *frame, cc_u8f total_samples)
+static cc_bool ResamplerOutputCallback(void *user_data, const cc_s32f *frame, cc_u8f total_samples)
 {
 	ResamplerCallbackData* const callback_data = (ResamplerCallbackData*)user_data;
 
@@ -290,7 +290,7 @@ typedef struct ResamplerCallbackData
 	ma_uint32 output_buffer_frames_remaining;
 } ResamplerCallbackData;
 
-static size_t ResamplerInputCallback(const void *user_data, cc_s16l *buffer, size_t total_frames)
+static size_t ResamplerInputCallback(void *user_data, cc_s16l *buffer, size_t total_frames)
 {
 	(void)user_data;
 
@@ -298,7 +298,7 @@ static size_t ResamplerInputCallback(const void *user_data, cc_s16l *buffer, siz
 	return drmp3_read_pcm_frames_s16(&mp3_decoder, total_frames, buffer);
 }
 
-static cc_bool ResamplerOutputCallback(const void *user_data, const cc_s32f *frame, cc_u8f total_samples)
+static cc_bool ResamplerOutputCallback(void *user_data, const cc_s32f *frame, cc_u8f total_samples)
 {
 	ResamplerCallbackData* const callback_data = (ResamplerCallbackData*)user_data;
 
@@ -627,8 +627,8 @@ typedef struct ClownResampler_HighLevel_State
 	cc_s16l *input_buffer_end;
 } ClownResampler_HighLevel_State;
 
-typedef size_t (*ClownResampler_InputCallback)(const void *user_data, cc_s16l *buffer, size_t total_frames);
-typedef cc_bool (*ClownResampler_OutputCallback)(const void *user_data, const cc_s32f *frame, cc_u8f total_samples);
+typedef size_t (*ClownResampler_InputCallback)(void *user_data, cc_s16l *buffer, size_t total_frames);
+typedef cc_bool (*ClownResampler_OutputCallback)(void *user_data, const cc_s32f *frame, cc_u8f total_samples);
 
 #endif /* CLOWNRESAMPLER_GUARD_MISC */
 
@@ -995,7 +995,7 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_LowLevel_Resample(ClownResampler_LowLe
 			resampler->position_fractional %= CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE;
 
 			/* Output the samples. */
-			if (!output_callback(user_data, samples, resampler->channels))
+			if (!output_callback((void*)user_data, samples, resampler->channels))
 			{
 				/* We've reached the end of the output buffer. */
 				*total_input_frames -= resampler->position_integer;
@@ -1045,7 +1045,7 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Resample(ClownResampler_HighLev
 
 			/* Obtain input frames (note that the new frames start after the frames we just copied). */
 			resampler->input_buffer_start = resampler->input_buffer + radius_in_samples;
-			resampler->input_buffer_end = resampler->input_buffer_start + input_callback(user_data, resampler->input_buffer + double_radius_in_samples, (CLOWNRESAMPLER_COUNT_OF(resampler->input_buffer) - double_radius_in_samples) / resampler->low_level.channels) * resampler->low_level.channels;
+			resampler->input_buffer_end = resampler->input_buffer_start + input_callback((void*)user_data, resampler->input_buffer + double_radius_in_samples, (CLOWNRESAMPLER_COUNT_OF(resampler->input_buffer) - double_radius_in_samples) / resampler->low_level.channels) * resampler->low_level.channels;
 
 			/* If the callback returns 0, then we must have reached the end of the input data, so quit. */
 			if (resampler->input_buffer_start == resampler->input_buffer_end)
