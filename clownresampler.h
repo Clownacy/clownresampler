@@ -1011,9 +1011,10 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_LowLevel_Resample(ClownResampler_LowLe
 			if (!output_callback((void*)user_data, samples, resampler->channels))
 			{
 				/* We've reached the end of the output buffer. */
-				CLOWNRESAMPLER_ASSERT(resampler->position_integer <= *total_input_frames);
-				*total_input_frames -= resampler->position_integer;
-				resampler->position_integer = 0;
+				const size_t delta = CLOWNRESAMPLER_MIN(resampler->position_integer, *total_input_frames);
+
+				*total_input_frames -= delta;
+				resampler->position_integer -= delta;
 				return cc_false;
 			}
 		}
