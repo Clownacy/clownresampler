@@ -622,7 +622,7 @@ typedef struct ClownResampler_HighLevel_State
 {
 	ClownResampler_LowLevel_State low_level;
 
-	cc_s16l input_buffer[0x1000];
+	cc_s16l input_buffer[0x1000]; /* TODO: This should be dynamically allocated in accordance with the kernel radius... */
 	cc_s16l *input_buffer_start;
 	cc_s16l *input_buffer_end;
 } ClownResampler_HighLevel_State;
