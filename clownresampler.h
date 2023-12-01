@@ -927,7 +927,6 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Adjust(ClownResampler_LowLevel_S
 	/* Determine the kernel scale. This is used to apply a low-pass filter. Not only is this something that the user may
 	   explicitly request, but it's needed when downsampling to avoid artefacts. */
 	/* Note that we do not ever want the kernel to be squished, but rather only stretched. */
-	/* TODO - Freak-out if the ratio is so high that the kernel radius would exceed the size of the input buffer. */
 	const cc_u32f actual_low_pass_sample_rate = CLOWNRESAMPLER_MIN(input_sample_rate, CLOWNRESAMPLER_MIN(output_sample_rate, low_pass_filter_sample_rate));
 	const cc_u32f kernel_scale = ClownResampler_CalculateRatio(input_sample_rate, actual_low_pass_sample_rate);
 	const cc_u32f inverse_kernel_scale = ClownResampler_CalculateRatio(actual_low_pass_sample_rate, input_sample_rate);
@@ -1013,6 +1012,7 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_LowLevel_Resample(ClownResampler_LowLe
 			if (!output_callback((void*)user_data, samples, resampler->channels))
 			{
 				/* We've reached the end of the output buffer. */
+				CLOWNRESAMPLER_ASSERT(resampler->position_integer <= *total_input_frames);
 				*total_input_frames -= resampler->position_integer;
 				resampler->position_integer = 0;
 				return cc_false;
@@ -1043,6 +1043,9 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Adjust(ClownResampler_HighLevel
 
 	/* TODO: Return a boolean or something to the user... */
 	CLOWNRESAMPLER_ASSERT(resampler->maximum_integer_stretched_kernel_radius >= resampler->low_level.integer_stretched_kernel_radius);
+
+	/* TODO - Freak-out if the ratio is so high that the kernel radius would exceed the size of the input buffer. */
+	CLOWNRESAMPLER_ASSERT(resampler->low_level.integer_stretched_kernel_radius * 2 < CLOWNRESAMPLER_COUNT_OF(resampler->input_buffer) / resampler->low_level.channels);
 }
 
 CLOWNRESAMPLER_API void ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State* const resampler, const ClownResampler_Precomputed* const precomputed, const ClownResampler_InputCallback input_callback, const ClownResampler_OutputCallback output_callback, const void* const user_data)
