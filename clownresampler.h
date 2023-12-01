@@ -832,7 +832,7 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Resample(ClownResampler_HighLev
 #define CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEIL(x) (((x) + (CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE - 1)) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
 #define CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(a, b) ((a) * (b) / CLOWNRESAMPLER_FIXED_POINT_FRACTIONAL_SIZE)
 
-static double ClownResampler_LanczosKernel(double x)
+static double ClownResampler_LanczosKernel(const double x)
 {
 	const double kernel_radius = (double)CLOWNRESAMPLER_KERNEL_RADIUS;
 
@@ -853,7 +853,7 @@ static double ClownResampler_LanczosKernel(double x)
 
 /* Common API */
 
-CLOWNRESAMPLER_API void ClownResampler_Precompute(ClownResampler_Precomputed *precomputed)
+CLOWNRESAMPLER_API void ClownResampler_Precompute(ClownResampler_Precomputed* const precomputed)
 {
 	size_t i;
 
@@ -864,7 +864,7 @@ CLOWNRESAMPLER_API void ClownResampler_Precompute(ClownResampler_Precomputed *pr
 
 /* Low-Level API */
 
-CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_State *resampler, cc_u8f channels, cc_u32f input_sample_rate, cc_u32f output_sample_rate, cc_u32f low_pass_filter_sample_rate)
+CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_State* const resampler, const cc_u8f channels, const cc_u32f input_sample_rate, const cc_u32f output_sample_rate, const cc_u32f low_pass_filter_sample_rate)
 {
 	/* TODO - We really should just return here. */
 	CLOWNRESAMPLER_ASSERT(channels <= CLOWNRESAMPLER_MAXIMUM_CHANNELS);
@@ -875,7 +875,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_Sta
 	ClownResampler_LowLevel_Adjust(resampler, input_sample_rate, output_sample_rate, low_pass_filter_sample_rate);
 }
 
-static cc_u32f ClownResampler_CalculateRatio(cc_u32f a, cc_u32f b)
+static cc_u32f ClownResampler_CalculateRatio(const cc_u32f a, const cc_u32f b)
 {
 	/* HAHAHA, I NEVER THOUGHT LONG DIVISION WOULD ACTUALLY COME IN HANDY! */
 	cc_u32f upper, middle, lower, result;
@@ -909,7 +909,7 @@ static cc_u32f ClownResampler_CalculateRatio(cc_u32f a, cc_u32f b)
 	return result;
 }
 
-CLOWNRESAMPLER_API void ClownResampler_LowLevel_Adjust(ClownResampler_LowLevel_State *resampler, cc_u32f input_sample_rate, cc_u32f output_sample_rate, cc_u32f low_pass_filter_sample_rate)
+CLOWNRESAMPLER_API void ClownResampler_LowLevel_Adjust(ClownResampler_LowLevel_State* const resampler, const cc_u32f input_sample_rate, const cc_u32f output_sample_rate, const cc_u32f low_pass_filter_sample_rate)
 {
 	const cc_u32f output_to_input_ratio = ClownResampler_CalculateRatio(input_sample_rate, output_sample_rate);
 
@@ -935,7 +935,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Adjust(ClownResampler_LowLevel_S
 	resampler->sample_normaliser = (cc_s32f)(inverse_kernel_scale >> (16 - 15));
 }
 
-CLOWNRESAMPLER_API cc_bool ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const ClownResampler_Precomputed *precomputed, const cc_s16l *input_buffer, size_t *total_input_frames, ClownResampler_OutputCallback output_callback, const void *user_data)
+CLOWNRESAMPLER_API cc_bool ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State* const resampler, const ClownResampler_Precomputed* const precomputed, const cc_s16l* const input_buffer, size_t* const total_input_frames, const ClownResampler_OutputCallback output_callback, const void* const user_data)
 {
 	for (;;)
 	{
@@ -1009,7 +1009,7 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_LowLevel_Resample(ClownResampler_LowLe
 
 /* High-Level API */
 
-CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_State *resampler, cc_u8f channels, cc_u32f input_sample_rate, cc_u32f output_sample_rate, cc_u32f low_pass_filter_sample_rate)
+CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_State* const resampler, const cc_u8f channels, const cc_u32f input_sample_rate, const cc_u32f output_sample_rate, const cc_u32f low_pass_filter_sample_rate)
 {
 	ClownResampler_LowLevel_Init(&resampler->low_level, channels, input_sample_rate, output_sample_rate, low_pass_filter_sample_rate);
 
@@ -1020,7 +1020,7 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_S
 	resampler->input_buffer_start = resampler->input_buffer_end = resampler->input_buffer + resampler->low_level.integer_stretched_kernel_radius * resampler->low_level.channels;
 }
 
-CLOWNRESAMPLER_API void ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, ClownResampler_InputCallback input_callback, ClownResampler_OutputCallback output_callback, const void *user_data)
+CLOWNRESAMPLER_API void ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State* const resampler, const ClownResampler_Precomputed* const precomputed, const ClownResampler_InputCallback input_callback, const ClownResampler_OutputCallback output_callback, const void* const user_data)
 {
 	cc_bool reached_end_of_output_buffer = cc_false;
 
