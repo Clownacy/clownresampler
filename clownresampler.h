@@ -625,6 +625,7 @@ typedef struct ClownResampler_HighLevel_State
 	cc_s16l *input_buffer_start;
 	cc_s16l *input_buffer_end;
 	size_t maximum_integer_stretched_kernel_radius;
+	size_t leading_padding_frames_needed, trailing_padding_frames_remaining;
 } ClownResampler_HighLevel_State;
 
 typedef size_t (*ClownResampler_InputCallback)(void *user_data, cc_s16l *buffer, size_t total_frames);
@@ -701,8 +702,9 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Adjust(ClownResampler_LowLevel_S
    After this function returns, the 'total_input_frames' parameter will
    contain the number of frames in the input buffer that were not processed.
 
-   This function will return 1 if it terminated because it ran out of input
-   samples, or 0 if it terminated because the callback returned 0. */
+   This function will return 'cc_true' if it terminated because it ran out of
+   input samples, or 'cc_false' if it terminated because the callback returned
+   0. */
 CLOWNRESAMPLER_API cc_bool ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const ClownResampler_Precomputed *precomputed, const cc_s16l *input_buffer, size_t *total_input_frames, ClownResampler_OutputCallback output_callback, const void *user_data);
 
 
@@ -735,8 +737,9 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Adjust(ClownResampler_HighLevel
 /* Resamples audio. This function returns when either the output buffer is
    full, or the input callback stops providing frames.
 
-   This function returns the number of frames that were written to the output
-   buffer.
+   This function will return 'cc_true' if it terminated because the input
+   callback returned 0, or 'cc_false' if it terminated because the output
+   callback returned 0.
 
    The parameters are as follows:
 
@@ -784,7 +787,13 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Adjust(ClownResampler_HighLevel
 
    'user_data'
    An arbitrary pointer that is passed to the callback functions. */
-CLOWNRESAMPLER_API void ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, ClownResampler_InputCallback input_callback, ClownResampler_OutputCallback output_callback, const void *user_data);
+CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, ClownResampler_InputCallback input_callback, ClownResampler_OutputCallback output_callback, const void *user_data);
+
+/* This is to be used after the final call to
+  'ClownResampler_HighLevel_Resample', to output the last few samples.
+
+  Returns 'cc_true' when the final sample has been output. */
+CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_ResampleEnd(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, ClownResampler_OutputCallback output_callback, const void *user_data);
 
 #ifdef __cplusplus
 }
@@ -1028,10 +1037,10 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_S
 {
 	ClownResampler_LowLevel_Init(&resampler->low_level, channels, input_sample_rate, output_sample_rate, low_pass_filter_sample_rate);
 
-	resampler->maximum_integer_stretched_kernel_radius = resampler->low_level.integer_stretched_kernel_radius;
+	resampler->maximum_integer_stretched_kernel_radius = resampler->leading_padding_frames_needed = resampler->trailing_padding_frames_remaining = resampler->low_level.integer_stretched_kernel_radius;
 
-	/* Blank the width of the kernel's diameter to zero, since there won't be previous data to occupy it yet. */
-	CLOWNRESAMPLER_ZERO(resampler->input_buffer, resampler->maximum_integer_stretched_kernel_radius * resampler->low_level.channels * 2 * sizeof(*resampler->input_buffer));
+	/* Blank the width of the kernel's left side to zero, since there won't be previous data to occupy it yet. */
+	CLOWNRESAMPLER_ZERO(resampler->input_buffer, resampler->maximum_integer_stretched_kernel_radius * resampler->low_level.channels * sizeof(*resampler->input_buffer));
 
 	/* Initialise the pointers to point to the middle of the first (and newly-initialised) kernel. */
 	resampler->input_buffer_start = resampler->input_buffer_end = resampler->input_buffer + resampler->maximum_integer_stretched_kernel_radius * resampler->low_level.channels;
@@ -1049,9 +1058,23 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Adjust(ClownResampler_HighLevel
 	CLOWNRESAMPLER_ASSERT(resampler->low_level.integer_stretched_kernel_radius * 2 < CLOWNRESAMPLER_COUNT_OF(resampler->input_buffer) / resampler->low_level.channels);
 }
 
-CLOWNRESAMPLER_API void ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State* const resampler, const ClownResampler_Precomputed* const precomputed, const ClownResampler_InputCallback input_callback, const ClownResampler_OutputCallback output_callback, const void* const user_data)
+CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State* const resampler, const ClownResampler_Precomputed* const precomputed, const ClownResampler_InputCallback input_callback, const ClownResampler_OutputCallback output_callback, const void* const user_data)
 {
 	cc_bool reached_end_of_output_buffer = cc_false;
+
+	const size_t maximum_radius_in_samples = resampler->maximum_integer_stretched_kernel_radius * resampler->low_level.channels;
+	const size_t double_maximum_radius_in_samples = maximum_radius_in_samples * 2;
+
+	while (resampler->leading_padding_frames_needed != 0)
+	{
+		cc_s16l* const buffer = &resampler->input_buffer[double_maximum_radius_in_samples - resampler->leading_padding_frames_needed * resampler->low_level.channels];
+		const size_t frames_read = input_callback((void*)user_data, buffer, resampler->leading_padding_frames_needed);
+
+		if (frames_read == 0)
+			return cc_true;
+
+		resampler->leading_padding_frames_needed -= frames_read;
+	}
 
 	do
 	{
@@ -1062,8 +1085,6 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Resample(ClownResampler_HighLev
 			   in order to avoid the resampler reading frames outside of the buffer, we have 'deadzones'
 			   at each end of the buffer. When a new batch of frames is needed, the second deadzone is
 			   copied over the first one, and the second is overwritten by the end of the new frames. */
-			const size_t maximum_radius_in_samples = resampler->maximum_integer_stretched_kernel_radius * resampler->low_level.channels;
-			const size_t double_maximum_radius_in_samples = maximum_radius_in_samples * 2;
 
 			/* Move the end of the last batch of data to the start of the buffer */
 			/* (memcpy won't work here since the copy may overlap). */
@@ -1075,7 +1096,7 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Resample(ClownResampler_HighLev
 
 			/* If the callback returns 0, then we must have reached the end of the input data, so quit. */
 			if (resampler->input_buffer_start == resampler->input_buffer_end)
-				break;
+				return cc_true;
 		}
 
 		/* Call the actual resampler. */
@@ -1091,6 +1112,44 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Resample(ClownResampler_HighLev
 			resampler->input_buffer_start = resampler->input_buffer_end - input_frames * resampler->low_level.channels;
 		}
 	} while (!reached_end_of_output_buffer);
+
+	return cc_false;
+}
+
+typedef struct ClownResampler_CallbackWrapperData
+{
+	ClownResampler_HighLevel_State *resampler;
+	ClownResampler_OutputCallback output_callback;
+	void *user_data;
+} ClownResampler_CallbackWrapperData;
+
+static size_t ClownResampler_PaddingCallback(void* const user_data, cc_s16l* const buffer, const size_t total_frames)
+{
+	const ClownResampler_CallbackWrapperData* const data = (ClownResampler_CallbackWrapperData*)user_data;
+	const size_t frames_to_do = CLOWNRESAMPLER_MIN(total_frames, data->resampler->trailing_padding_frames_remaining);
+
+	CLOWNRESAMPLER_ZERO(buffer, frames_to_do * data->resampler->low_level.channels * sizeof(*buffer));
+
+	data->resampler->trailing_padding_frames_remaining -= frames_to_do;
+
+	return frames_to_do;
+}
+
+static cc_bool ClownResampler_OutputCallbackWrapper(void* const user_data, const cc_s32f* const frame, const cc_u8f total_samples)
+{
+	const ClownResampler_CallbackWrapperData* const data = (ClownResampler_CallbackWrapperData*)user_data;
+
+	return data->output_callback(data->user_data, frame, total_samples);
+}
+
+CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_ResampleEnd(ClownResampler_HighLevel_State* const resampler, const ClownResampler_Precomputed* const precomputed, const ClownResampler_OutputCallback output_callback, const void* const user_data)
+{
+	ClownResampler_CallbackWrapperData data;
+	data.resampler = resampler;
+	data.output_callback = output_callback;
+	data.user_data = (void*)user_data;
+
+	return ClownResampler_HighLevel_Resample(resampler, precomputed, ClownResampler_PaddingCallback, ClownResampler_OutputCallbackWrapper, &data);
 }
 
 #endif /* CLOWNRESAMPLER_GUARD_FUNCTION_DEFINITIONS */

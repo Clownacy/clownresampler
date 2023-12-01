@@ -124,6 +124,7 @@ int main(int argc, char **argv)
 
 					/* Resample the decoded audio data. */
 					ClownResampler_HighLevel_Resample(&resampler, &precomputed, ResamplerInputCallback, ResamplerOutputCallback, output_file);
+					ClownResampler_HighLevel_ResampleEnd(&resampler, &precomputed, ResamplerOutputCallback, output_file);
 
 					drflac_close(flac_decoder);
 
