@@ -171,6 +171,7 @@ int main(int argc, char **argv)
 				size_t total_mp3_pcm_frames;
 
 				total_mp3_pcm_frames = drmp3_get_pcm_frame_count(&mp3_decoder);
+				total_channels = mp3_decoder.channels;
 
 				/* Inform the user of the input and output sample rates. */
 				fprintf(stderr, "MP3 Sample Rate: %lu\n", (unsigned long)mp3_decoder.sampleRate);
@@ -223,8 +224,6 @@ int main(int argc, char **argv)
 					/*****************************************************/
 					/* Finished setting up the resampler's input buffer. */
 					/*****************************************************/
-
-					total_channels = mp3_decoder.channels;
 
 					/* Begin playback. */
 					ma_device_start(&miniaudio_device);
