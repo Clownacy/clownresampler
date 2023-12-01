@@ -958,7 +958,7 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_LowLevel_Resample(ClownResampler_LowLe
 			const size_t min = (resampler->position_integer + min_relative) * resampler->channels;
 			const size_t max = (resampler->position_integer + resampler->integer_stretched_kernel_radius + CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_FLOOR(resampler->position_fractional + resampler->stretched_kernel_radius)) * resampler->channels;
 
-			/* Yes, I know this line is freaking insane.
+			/* Yes, I know this line is insane.
 			   It's essentially a simplified and fixed-point version of this:
 			   const size_t kernel_start = (size_t)(resampler->kernel_step_size * ((float)(min / resampler->channels) - resampler->position_if_it_were_a_float)); */
 			const size_t kernel_start = CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(resampler->kernel_step_size, (CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(min_relative) - resampler->position_fractional));
