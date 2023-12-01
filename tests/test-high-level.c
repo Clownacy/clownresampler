@@ -56,7 +56,7 @@ static cc_bool ResamplerOutputCallback(void *user_data, const cc_s32f *frame, cc
 		fwrite(bytes, 1, sizeof(bytes), output_file);
 	}
 
-	return 1;
+	return cc_true;
 }
 
 int main(int argc, char **argv)
