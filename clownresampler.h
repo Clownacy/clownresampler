@@ -808,9 +808,9 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Resample(ClownResampler_HighLev
 #define CLOWNRESAMPLER_SIN sin
 #endif
 
-#ifndef CLOWNRESAMPLER_MEMSET
+#ifndef CLOWNRESAMPLER_ZERO
 #include <string.h>
-#define CLOWNRESAMPLER_MEMSET memset
+#define CLOWNRESAMPLER_ZERO(buffer, size) memset(buffer, 0, size)
 #endif
 
 #ifndef CLOWNRESAMPLER_MEMMOVE
@@ -1014,7 +1014,7 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_S
 	ClownResampler_LowLevel_Init(&resampler->low_level, channels, input_sample_rate, output_sample_rate, low_pass_filter_sample_rate);
 
 	/* Blank the width of the kernel's diameter to zero, since there won't be previous data to occupy it yet. */
-	CLOWNRESAMPLER_MEMSET(resampler->input_buffer, 0, resampler->low_level.integer_stretched_kernel_radius * resampler->low_level.channels * 2 * sizeof(*resampler->input_buffer));
+	CLOWNRESAMPLER_ZERO(resampler->input_buffer, resampler->low_level.integer_stretched_kernel_radius * resampler->low_level.channels * 2 * sizeof(*resampler->input_buffer));
 
 	/* Initialise the pointers to point to the middle of the first (and newly-initialised) kernel. */
 	resampler->input_buffer_start = resampler->input_buffer_end = resampler->input_buffer + resampler->low_level.integer_stretched_kernel_radius * resampler->low_level.channels;
