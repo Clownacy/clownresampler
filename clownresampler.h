@@ -1043,7 +1043,8 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Adjust(ClownResampler_HighLevel
 	/* TODO: Return a boolean or something to the user... */
 	CLOWNRESAMPLER_ASSERT(resampler->maximum_integer_stretched_kernel_radius >= resampler->low_level.integer_stretched_kernel_radius);
 
-	/* TODO - Freak-out if the ratio is so high that the kernel radius would exceed the size of the input buffer. */
+	/* Freak-out if the ratio is so high that the kernel radius would exceed the size of the input buffer. */
+	/* TODO: Ditto. */
 	CLOWNRESAMPLER_ASSERT(resampler->low_level.integer_stretched_kernel_radius * 2 < CLOWNRESAMPLER_COUNT_OF(resampler->input_buffer) / resampler->low_level.channels);
 }
 
