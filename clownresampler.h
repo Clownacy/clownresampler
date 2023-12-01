@@ -966,13 +966,17 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_LowLevel_Resample(ClownResampler_LowLe
 
 			/* Calculate the bounds of the kernel convolution. */
 			const size_t min_relative = CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEILING(resampler->position_fractional + resampler->stretched_kernel_radius_delta);
+			const size_t max_relative = CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_FLOOR(resampler->position_fractional + resampler->stretched_kernel_radius);
 			const size_t min = (resampler->position_integer + min_relative) * resampler->channels;
-			const size_t max = (resampler->position_integer + resampler->integer_stretched_kernel_radius + CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_FLOOR(resampler->position_fractional + resampler->stretched_kernel_radius)) * resampler->channels;
+			const size_t max = (resampler->position_integer + resampler->integer_stretched_kernel_radius + max_relative) * resampler->channels;
 
 			/* Yes, I know this line is insane.
 			   It's essentially a simplified and fixed-point version of this:
 			   const size_t kernel_start = (size_t)(resampler->kernel_step_size * ((float)(min / resampler->channels) - resampler->position_if_it_were_a_float)); */
 			const size_t kernel_start = CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(resampler->kernel_step_size, (CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(min_relative) - resampler->position_fractional));
+
+			CLOWNRESAMPLER_ASSERT(min_relative <= resampler->integer_stretched_kernel_radius);
+			CLOWNRESAMPLER_ASSERT(max_relative <= resampler->integer_stretched_kernel_radius);
 
 			CLOWNRESAMPLER_ASSERT(min < (*total_input_frames + resampler->integer_stretched_kernel_radius * 2) * resampler->channels);
 			CLOWNRESAMPLER_ASSERT(max < (*total_input_frames + resampler->integer_stretched_kernel_radius * 2) * resampler->channels);
