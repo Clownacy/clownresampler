@@ -138,7 +138,6 @@ int main(int argc, char **argv)
 					}
 					else
 					{
-						size_t resampler_input_buffer_total_frames;
 						size_t resampler_input_buffer_frames_remaining;
 
 						/* Set the padding samples at the start to 0. */
@@ -151,14 +150,12 @@ int main(int argc, char **argv)
 						/* Set the padding samples at the end to 0. */
 						memset(&resampler_input_buffer[(resampler.integer_stretched_kernel_radius + total_flac_pcm_frames) * total_channels], 0, resampler.integer_stretched_kernel_radius * size_of_frame);
 
-						/* Initialise some variables that will be used by the audio callback. */
-						resampler_input_buffer_total_frames = resampler_input_buffer_frames_remaining = total_flac_pcm_frames;
-
 						/*****************************************************/
 						/* Finished setting up the resampler's input buffer. */
 						/*****************************************************/
 
-						ClownResampler_LowLevel_Resample(&resampler, &precomputed, &resampler_input_buffer[(resampler_input_buffer_total_frames - resampler_input_buffer_frames_remaining) * total_channels], &resampler_input_buffer_frames_remaining, ResamplerOutputCallback, output_file);
+						resampler_input_buffer_frames_remaining = total_flac_pcm_frames;
+						ClownResampler_LowLevel_Resample(&resampler, &precomputed, resampler_input_buffer, &resampler_input_buffer_frames_remaining, ResamplerOutputCallback, output_file);
 
 						free(resampler_input_buffer);
 
