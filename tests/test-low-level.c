@@ -129,7 +129,7 @@ int main(int argc, char **argv)
 
 					/* Create a buffer to hold the decoded PCM data. */
 					/* clownresampler's low-level API requires that this buffer have padding at its beginning and end. */
-					resampler_input_buffer = (drflac_int16*)malloc((resampler.integer_stretched_kernel_radius * 2 + total_flac_pcm_frames) * size_of_frame);
+					resampler_input_buffer = (drflac_int16*)malloc((resampler.lowest_level.integer_stretched_kernel_radius * 2 + total_flac_pcm_frames) * size_of_frame);
 
 					if (resampler_input_buffer == NULL)
 					{
@@ -141,14 +141,14 @@ int main(int argc, char **argv)
 						size_t resampler_input_buffer_frames_remaining;
 
 						/* Set the padding samples at the start to 0. */
-						memset(&resampler_input_buffer[0], 0, resampler.integer_stretched_kernel_radius * size_of_frame);
+						memset(&resampler_input_buffer[0], 0, resampler.lowest_level.integer_stretched_kernel_radius * size_of_frame);
 
 						/* Decode the FLAC to the input buffer. */
-						drflac_read_pcm_frames_s16(flac_decoder, total_flac_pcm_frames, &resampler_input_buffer[resampler.integer_stretched_kernel_radius * total_channels]);
+						drflac_read_pcm_frames_s16(flac_decoder, total_flac_pcm_frames, &resampler_input_buffer[resampler.lowest_level.integer_stretched_kernel_radius * total_channels]);
 						drflac_close(flac_decoder);
 
 						/* Set the padding samples at the end to 0. */
-						memset(&resampler_input_buffer[(resampler.integer_stretched_kernel_radius + total_flac_pcm_frames) * total_channels], 0, resampler.integer_stretched_kernel_radius * size_of_frame);
+						memset(&resampler_input_buffer[(resampler.lowest_level.integer_stretched_kernel_radius + total_flac_pcm_frames) * total_channels], 0, resampler.lowest_level.integer_stretched_kernel_radius * size_of_frame);
 
 						/*****************************************************/
 						/* Finished setting up the resampler's input buffer. */
