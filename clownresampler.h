@@ -880,6 +880,49 @@ CLOWNRESAMPLER_API void ClownResampler_Precompute(ClownResampler_Precomputed* co
 		precomputed->lanczos_kernel_table[i] = (cc_s32l)CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(ClownResampler_LanczosKernel(((double)i / (double)CLOWNRESAMPLER_COUNT_OF(precomputed->lanczos_kernel_table) * 2.0 - 1.0) * (double)CLOWNRESAMPLER_KERNEL_RADIUS));
 }
 
+CLOWNRESAMPLER_API void ClownResampler_ComputeFrame(ClownResampler_LowLevel_State* const resampler, const ClownResampler_Precomputed* const precomputed, cc_s32f* const samples, const cc_s16l* const input_buffer, const size_t position_integer, const cc_u32f position_fractional)
+{
+	cc_u8f current_channel;
+	size_t sample_index, kernel_index;
+
+	/* Calculate the bounds of the kernel convolution. */
+	const size_t min_relative = CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEILING(position_fractional + resampler->stretched_kernel_radius_delta);
+	const size_t max_relative = CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_FLOOR(position_fractional + resampler->stretched_kernel_radius);
+	const size_t min = (position_integer + min_relative) * resampler->channels;
+	const size_t max = (position_integer + resampler->integer_stretched_kernel_radius + max_relative) * resampler->channels;
+
+	/* Yes, I know this line is insane.
+	   It's essentially a simplified and fixed-point version of this:
+	   const size_t kernel_start = (size_t)(resampler->kernel_step_size * ((float)(min / resampler->channels) - resampler->position_if_it_were_a_float)); */
+	const size_t kernel_start = CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(resampler->kernel_step_size, (CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(min_relative) - position_fractional));
+
+	CLOWNRESAMPLER_ASSERT(min_relative <= resampler->integer_stretched_kernel_radius);
+	CLOWNRESAMPLER_ASSERT(max_relative <= resampler->integer_stretched_kernel_radius);
+
+	for (sample_index = min, kernel_index = kernel_start; sample_index < max; sample_index += resampler->channels, kernel_index += resampler->kernel_step_size)
+	{
+		cc_s32f kernel_value;
+
+		CLOWNRESAMPLER_ASSERT(kernel_index < CLOWNRESAMPLER_COUNT_OF(precomputed->lanczos_kernel_table));
+
+		/* The distance between the frames being output and the frames being read is the parameter to the Lanczos kernel. */
+		kernel_value = (cc_s32f)precomputed->lanczos_kernel_table[kernel_index];
+
+		/* Modulate the samples with the kernel and add them to the accumulators. */
+		for (current_channel = 0; current_channel < resampler->channels; ++current_channel)
+			samples[current_channel] += CLOWNRESAMPLER_FIXED_POINT_MULTIPLY((cc_s32f)input_buffer[sample_index + current_channel], kernel_value);
+	}
+
+	/* Normalise the samples. */
+	for (current_channel = 0; current_channel < resampler->channels; ++current_channel)
+	{
+		/* Note that we use a 17.15 version of CLOWNRESAMPLER_FIXED_POINT_MULTIPLY here.
+		   This is because, if we used a 16.16 normaliser, then there's a chance that the result
+		   of the multiplication would overflow, causing popping. */
+		samples[current_channel] = (samples[current_channel] * resampler->sample_normaliser) / (1 << 15);
+	}
+}
+
 
 /* Low-Level API */
 
@@ -966,50 +1009,9 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_LowLevel_Resample(ClownResampler_LowLe
 		}
 		else
 		{
-			cc_u8f current_channel;
-			size_t sample_index, kernel_index;
-
 			cc_s32f samples[CLOWNRESAMPLER_MAXIMUM_CHANNELS] = {0}; /* Sample accumulators. */
 
-			/* Calculate the bounds of the kernel convolution. */
-			const size_t min_relative = CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEILING(resampler->position_fractional + resampler->stretched_kernel_radius_delta);
-			const size_t max_relative = CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_FLOOR(resampler->position_fractional + resampler->stretched_kernel_radius);
-			const size_t min = (resampler->position_integer + min_relative) * resampler->channels;
-			const size_t max = (resampler->position_integer + resampler->integer_stretched_kernel_radius + max_relative) * resampler->channels;
-
-			/* Yes, I know this line is insane.
-			   It's essentially a simplified and fixed-point version of this:
-			   const size_t kernel_start = (size_t)(resampler->kernel_step_size * ((float)(min / resampler->channels) - resampler->position_if_it_were_a_float)); */
-			const size_t kernel_start = CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(resampler->kernel_step_size, (CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(min_relative) - resampler->position_fractional));
-
-			CLOWNRESAMPLER_ASSERT(min_relative <= resampler->integer_stretched_kernel_radius);
-			CLOWNRESAMPLER_ASSERT(max_relative <= resampler->integer_stretched_kernel_radius);
-
-			CLOWNRESAMPLER_ASSERT(min < (*total_input_frames + resampler->integer_stretched_kernel_radius * 2) * resampler->channels);
-			CLOWNRESAMPLER_ASSERT(max < (*total_input_frames + resampler->integer_stretched_kernel_radius * 2) * resampler->channels);
-
-			for (sample_index = min, kernel_index = kernel_start; sample_index < max; sample_index += resampler->channels, kernel_index += resampler->kernel_step_size)
-			{
-				cc_s32f kernel_value;
-
-				CLOWNRESAMPLER_ASSERT(kernel_index < CLOWNRESAMPLER_COUNT_OF(precomputed->lanczos_kernel_table));
-
-				/* The distance between the frames being output and the frames being read is the parameter to the Lanczos kernel. */
-				kernel_value = (cc_s32f)precomputed->lanczos_kernel_table[kernel_index];
-
-				/* Modulate the samples with the kernel and add them to the accumulators. */
-				for (current_channel = 0; current_channel < resampler->channels; ++current_channel)
-					samples[current_channel] += CLOWNRESAMPLER_FIXED_POINT_MULTIPLY((cc_s32f)input_buffer[sample_index + current_channel], kernel_value);
-			}
-
-			/* Normalise the samples. */
-			for (current_channel = 0; current_channel < resampler->channels; ++current_channel)
-			{
-				/* Note that we use a 17.15 version of CLOWNRESAMPLER_FIXED_POINT_MULTIPLY here.
-				   This is because, if we used a 16.16 normaliser, then there's a chance that the result
-				   of the multiplication would overflow, causing popping. */
-				samples[current_channel] = (samples[current_channel] * resampler->sample_normaliser) / (1 << 15);
-			}
+			ClownResampler_ComputeFrame(resampler, precomputed, samples, input_buffer, resampler->position_integer, resampler->position_fractional);
 
 			/* Increment input buffer position. */
 			resampler->position_fractional += resampler->increment;
