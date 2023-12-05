@@ -935,9 +935,6 @@ CLOWNRESAMPLER_API void ClownResampler_LowestLevel_Configure(ClownResampler_Lowe
 	const cc_u32f kernel_scale = ClownResampler_CalculateRatio(input_sample_rate, actual_low_pass_sample_rate);
 	const cc_u32f inverse_kernel_scale = ClownResampler_CalculateRatio(actual_low_pass_sample_rate, input_sample_rate);
 
-	/* TODO - We really should just return here. */
-	CLOWNRESAMPLER_ASSERT(channels <= CLOWNRESAMPLER_MAXIMUM_CHANNELS);
-
 	configuration->channels = channels;
 	configuration->stretched_kernel_radius = CLOWNRESAMPLER_KERNEL_RADIUS * kernel_scale;
 	configuration->integer_stretched_kernel_radius = CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEILING(configuration->stretched_kernel_radius);
@@ -1054,6 +1051,9 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_LowLevel_Resample(ClownResampler_LowLe
 
 CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_State* const resampler, const cc_u8f channels, const cc_u32f input_sample_rate, const cc_u32f output_sample_rate, const cc_u32f low_pass_filter_sample_rate)
 {
+	/* TODO - We really should just return here. */
+	CLOWNRESAMPLER_ASSERT(channels <= CLOWNRESAMPLER_MAXIMUM_CHANNELS);
+
 	ClownResampler_LowLevel_Init(&resampler->low_level, channels, input_sample_rate, output_sample_rate, low_pass_filter_sample_rate);
 
 	resampler->maximum_integer_stretched_kernel_radius = resampler->leading_padding_frames_needed = resampler->trailing_padding_frames_remaining = resampler->low_level.lowest_level.integer_stretched_kernel_radius;
