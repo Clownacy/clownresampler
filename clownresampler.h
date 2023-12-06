@@ -663,7 +663,7 @@ CLOWNRESAMPLER_API void ClownResampler_Precompute(ClownResampler_Precomputed *pr
 
 /* Lowest-level API. */
 CLOWNRESAMPLER_API void ClownResampler_LowestLevel_Configure(ClownResampler_LowestLevel_Configuration *configuration, cc_u32f input_sample_rate, cc_u32f output_sample_rate, cc_u32f low_pass_filter_sample_rate);
-CLOWNRESAMPLER_API void ClownResampler_LowestLevel_Resample(const ClownResampler_LowestLevel_Configuration *configuration, const ClownResampler_Precomputed *precomputed, cc_s32f *samples, cc_u8f channels, const cc_s16l *input_buffer, size_t position_integer, cc_u32f position_fractional);
+CLOWNRESAMPLER_API void ClownResampler_LowestLevel_Resample(const ClownResampler_LowestLevel_Configuration *configuration, const ClownResampler_Precomputed *precomputed, cc_s32f *output_frame, cc_u8f channels, const cc_s16l *input_buffer, size_t position_integer, cc_u32f position_fractional);
 
 
 
@@ -948,7 +948,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowestLevel_Configure(ClownResampler_Lowe
 	configuration->sample_normaliser = (cc_s32f)(inverse_kernel_scale >> (16 - 15));
 }
 
-CLOWNRESAMPLER_API void ClownResampler_LowestLevel_Resample(const ClownResampler_LowestLevel_Configuration* const configuration, const ClownResampler_Precomputed* const precomputed, cc_s32f* const samples, const cc_u8f channels, const cc_s16l* const input_buffer, const size_t position_integer, const cc_u32f position_fractional)
+CLOWNRESAMPLER_API void ClownResampler_LowestLevel_Resample(const ClownResampler_LowestLevel_Configuration* const configuration, const ClownResampler_Precomputed* const precomputed, cc_s32f* const output_frame, const cc_u8f channels, const cc_s16l* const input_buffer, const size_t position_integer, const cc_u32f position_fractional)
 {
 	cc_u8f current_channel;
 	size_t sample_index, kernel_index;
@@ -978,7 +978,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowestLevel_Resample(const ClownResampler
 
 		/* Modulate the samples with the kernel and add them to the accumulators. */
 		for (current_channel = 0; current_channel < channels; ++current_channel)
-			samples[current_channel] += CLOWNRESAMPLER_FIXED_POINT_MULTIPLY((cc_s32f)input_buffer[sample_index + current_channel], kernel_value);
+			output_frame[current_channel] += CLOWNRESAMPLER_FIXED_POINT_MULTIPLY((cc_s32f)input_buffer[sample_index + current_channel], kernel_value);
 	}
 
 	/* Normalise the samples. */
@@ -987,7 +987,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowestLevel_Resample(const ClownResampler
 		/* Note that we use a 17.15 version of CLOWNRESAMPLER_FIXED_POINT_MULTIPLY here.
 		   This is because, if we used a 16.16 normaliser, then there's a chance that the result
 		   of the multiplication would overflow, causing popping. */
-		samples[current_channel] = (samples[current_channel] * configuration->sample_normaliser) / (1 << 15);
+		output_frame[current_channel] = (output_frame[current_channel] * configuration->sample_normaliser) / (1 << 15);
 	}
 }
 
