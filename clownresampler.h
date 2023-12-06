@@ -64,6 +64,7 @@ streamed piece by piece.
 
 #define CLOWNRESAMPLER_IMPLEMENTATION
 #define CLOWNRESAMPLER_STATIC
+#define CLOWNRESAMPLER_NO_HIGH_LEVEL_API /* We don't need the high-level API. */
 #include "../clownresampler.h"
 
 static ClownResampler_Precomputed precomputed;
@@ -667,6 +668,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowestLevel_Resample(const ClownResampler
 
 
 
+#ifndef CLOWNRESAMPLER_NO_LOW_LEVEL_API
 /* Low-level API.
    This API has lower overhead, but is more difficult to use, requiring that
    audio be pre-processed before resampling.
@@ -718,9 +720,11 @@ CLOWNRESAMPLER_API void ClownResampler_LowLevel_Adjust(ClownResampler_LowLevel_S
    input samples, or 'cc_false' if it terminated because the callback returned
    0. */
 CLOWNRESAMPLER_API cc_bool ClownResampler_LowLevel_Resample(ClownResampler_LowLevel_State *resampler, const ClownResampler_Precomputed *precomputed, const cc_s16l *input_buffer, size_t *total_input_frames, ClownResampler_OutputCallback output_callback, const void *user_data);
+#endif /* CLOWNRESAMPLER_NO_LOW_LEVEL_API */
 
 
 
+#ifndef CLOWNRESAMPLER_NO_HIGH_LEVEL_API
 /* High-level API.
    This API has more overhead, but is easier to use.
    Do NOT mix high-level API calls with low-level API calls for the same
@@ -806,6 +810,7 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_Resample(ClownResampler_High
 
   Returns 'cc_true' when the final sample has been output. */
 CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_ResampleEnd(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, ClownResampler_OutputCallback output_callback, const void *user_data);
+#endif /* CLOWNRESAMPLER_NO_HIGH_LEVEL_API */
 
 #ifdef __cplusplus
 }
@@ -992,6 +997,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowestLevel_Resample(const ClownResampler
 }
 
 
+#ifndef CLOWNRESAMPLER_NO_LOW_LEVEL_API
 /* Low-Level API */
 
 CLOWNRESAMPLER_API void ClownResampler_LowLevel_Init(ClownResampler_LowLevel_State* const resampler, const cc_u8f channels, const cc_u32f input_sample_rate, const cc_u32f output_sample_rate, const cc_u32f low_pass_filter_sample_rate)
@@ -1043,8 +1049,10 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_LowLevel_Resample(ClownResampler_LowLe
 		}
 	}
 }
+#endif /* CLOWNRESAMPLER_NO_LOW_LEVEL_API */
 
 
+#ifndef CLOWNRESAMPLER_NO_HIGH_LEVEL_API
 /* High-Level API */
 
 CLOWNRESAMPLER_API void ClownResampler_HighLevel_Init(ClownResampler_HighLevel_State* const resampler, const cc_u8f channels, const cc_u32f input_sample_rate, const cc_u32f output_sample_rate, const cc_u32f low_pass_filter_sample_rate)
@@ -1168,6 +1176,7 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_ResampleEnd(ClownResampler_H
 
 	return ClownResampler_HighLevel_Resample(resampler, precomputed, ClownResampler_PaddingCallback, ClownResampler_OutputCallbackWrapper, &data);
 }
+#endif /* CLOWNRESAMPLER_NO_HIGH_LEVEL_API */
 
 #endif /* CLOWNRESAMPLER_GUARD_FUNCTION_DEFINITIONS */
 

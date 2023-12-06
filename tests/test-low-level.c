@@ -24,6 +24,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 #define CLOWNRESAMPLER_IMPLEMENTATION
 #define CLOWNRESAMPLER_STATIC
+#define CLOWNRESAMPLER_NO_HIGH_LEVEL_API /* We don't need the high-level API. */
 #include "../clownresampler.h"
 
 static ClownResampler_Precomputed precomputed;
