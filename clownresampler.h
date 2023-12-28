@@ -459,6 +459,15 @@ int main(int argc, char **argv)
 #define CLOWNRESAMPLER_MAXIMUM_CHANNELS 16 /* As stb_vorbis says, this should be enough for pretty much everyone. */
 #endif
 
+/* Disables the low-level API. */
+/*#define CLOWNRESAMPLER_NO_LOW_LEVEL_API*/
+
+/* Disables the high-level API. */
+/*#define CLOWNRESAMPLER_NO_HIGH_LEVEL_API*/
+
+/* Disables the ClownResampler_HighLevel_ResampleEnd function. */
+/*#define CLOWNRESAMPLER_NO_HIGH_LEVEL_RESAMPLE_END*/
+
 
 /* 3. Header & Documentation */
 
@@ -1167,6 +1176,7 @@ static cc_bool ClownResampler_OutputCallbackWrapper(void* const user_data, const
 	return data->output_callback(data->user_data, frame, total_samples);
 }
 
+#ifndef CLOWNRESAMPLER_NO_HIGH_LEVEL_RESAMPLE_END
 CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_ResampleEnd(ClownResampler_HighLevel_State* const resampler, const ClownResampler_Precomputed* const precomputed, const ClownResampler_OutputCallback output_callback, const void* const user_data)
 {
 	ClownResampler_CallbackWrapperData data;
@@ -1176,6 +1186,8 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_ResampleEnd(ClownResampler_H
 
 	return ClownResampler_HighLevel_Resample(resampler, precomputed, ClownResampler_PaddingCallback, ClownResampler_OutputCallbackWrapper, &data);
 }
+#endif /* CLOWNRESAMPLER_NO_HIGH_LEVEL_RESAMPLE_END */
+
 #endif /* CLOWNRESAMPLER_NO_HIGH_LEVEL_API */
 
 #endif /* CLOWNRESAMPLER_GUARD_FUNCTION_DEFINITIONS */
