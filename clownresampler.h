@@ -814,11 +814,14 @@ CLOWNRESAMPLER_API void ClownResampler_HighLevel_Adjust(ClownResampler_HighLevel
    An arbitrary pointer that is passed to the callback functions. */
 CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, ClownResampler_InputCallback input_callback, ClownResampler_OutputCallback output_callback, const void *user_data);
 
+#ifndef CLOWNRESAMPLER_NO_HIGH_LEVEL_RESAMPLE_END
 /* This is to be used after the final call to
   'ClownResampler_HighLevel_Resample', to output the last few samples.
 
   Returns 'cc_true' when the final sample has been output. */
 CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_ResampleEnd(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, ClownResampler_OutputCallback output_callback, const void *user_data);
+#endif /* CLOWNRESAMPLER_NO_HIGH_LEVEL_RESAMPLE_END */
+
 #endif /* CLOWNRESAMPLER_NO_HIGH_LEVEL_API */
 
 #ifdef __cplusplus
@@ -1150,6 +1153,7 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_Resample(ClownResampler_High
 	return cc_false;
 }
 
+#ifndef CLOWNRESAMPLER_NO_HIGH_LEVEL_RESAMPLE_END
 typedef struct ClownResampler_CallbackWrapperData
 {
 	ClownResampler_HighLevel_State *resampler;
@@ -1176,7 +1180,6 @@ static cc_bool ClownResampler_OutputCallbackWrapper(void* const user_data, const
 	return data->output_callback(data->user_data, frame, total_samples);
 }
 
-#ifndef CLOWNRESAMPLER_NO_HIGH_LEVEL_RESAMPLE_END
 CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_ResampleEnd(ClownResampler_HighLevel_State* const resampler, const ClownResampler_Precomputed* const precomputed, const ClownResampler_OutputCallback output_callback, const void* const user_data)
 {
 	ClownResampler_CallbackWrapperData data;
