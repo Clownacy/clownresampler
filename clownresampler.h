@@ -64,7 +64,7 @@ streamed piece by piece.
 
 #define CLOWNRESAMPLER_IMPLEMENTATION
 #define CLOWNRESAMPLER_STATIC
-#define CLOWNRESAMPLER_NO_HIGH_LEVEL_API /* We don't need the high-level API. */
+#define CLOWNRESAMPLER_NO_HIGH_LEVEL_API /* We do not need the high-level API. */
 #include "../clownresampler.h"
 
 static ClownResampler_Precomputed precomputed;
@@ -686,8 +686,8 @@ CLOWNRESAMPLER_API void ClownResampler_LowestLevel_Resample(const ClownResampler
 
 
 /* Initialises a low-level resampler. This function must be called before the
-   state is passed to any other functions. The input and output sample rates
-   don't actually have to match the sample rates being used - they just need to
+   state is passed to any other functions. The input and output sample rates do
+   not actually have to match the sample rates being used - they just need to
    provide the ratio between the two (for example, 1 and 2 works just as well
    as 22050 and 44100). Remember that a sample rate is double the frequency.
    The 'channels' parameter must not be larger than
@@ -696,8 +696,8 @@ CLOWNRESAMPLER_API void ClownResampler_LowestLevel_Resample(const ClownResampler
    Returns 'cc_false' on failure, and 'cc_true' otherwise. */
 CLOWNRESAMPLER_API cc_bool ClownResampler_LowLevel_Init(ClownResampler_LowLevel_State *resampler, cc_u8f channels, cc_u32f input_sample_rate, cc_u32f output_sample_rate, cc_u32f low_pass_filter_sample_rate);
 
-/* Adjusts properties of the resampler. The input and output sample rates don't
-   actually have to match the sample rates being used - they just need to
+/* Adjusts properties of the resampler. The input and output sample rates do
+   not actually have to match the sample rates being used - they just need to
    provide the ratio between the two (for example, 1 and 2 works just as well
    as 22050 and 44100). Remember that a sample rate is double the frequency.
 
@@ -706,7 +706,7 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_LowLevel_Adjust(ClownResampler_LowLeve
 
 /* Resamples (pre-processed) audio. The 'total_input_frames' and
    'total_output_frames' parameters measure the size of their respective
-   buffers in frames, not samples or bytes.
+   buffers in frames, not samples nor bytes.
 
    The input buffer must be specially pre-processed, so that it is padded with
    extra frames at the beginning and end. This is needed as the resampler will
@@ -745,8 +745,8 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_LowLevel_Resample(ClownResampler_LowLe
 
 
 /* Initialises a high-level resampler. This function must be called before the
-   state is passed to any other functions. The input and output sample rates
-   don't actually have to match the sample rates being used - they just need to
+   state is passed to any other functions. The input and output sample rates do
+   not actually have to match the sample rates being used - they just need to
    provide the ratio between the two (for example, 1 and 2 works just as well
    as 22050 and 44100). Remember that a sample rate is double the frequency.
    The 'channels' parameter must not be larger than
@@ -755,8 +755,8 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_LowLevel_Resample(ClownResampler_LowLe
    Returns 'cc_false' on failure, and 'cc_true' otherwise. */
 CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_Init(ClownResampler_HighLevel_State *resampler, cc_u8f channels, cc_u32f input_sample_rate, cc_u32f output_sample_rate, cc_u32f low_pass_filter_sample_rate);
 
-/* Adjusts properties of the resampler. The input and output sample rates don't
-   actually have to match the sample rates being used - they just need to
+/* Adjusts properties of the resampler. The input and output sample rates do
+   not actually have to match the sample rates being used - they just need to
    provide the ratio between the two (for example, 1 and 2 works just as well
    as 22050 and 44100). Remember that a sample rate is double the frequency.
 
@@ -792,7 +792,7 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_Adjust(ClownResampler_HighLe
    'total_output_frames'
 
    The size of the buffer specified by the 'output_buffer' parameter. The size
-   is measured in frames, not samples or bytes.
+   is measured in frames, not samples nor bytes.
 
 
    'input_callback'
@@ -809,7 +809,7 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_Adjust(ClownResampler_HighLe
    'output_callback'
 
 
-   A callback for outputting a single completed frame. frame' points to a
+   A callback for outputting a single completed frame. 'frame' points to a
    series of samples corresponding a frame of audio. 'total_samples' is the
    number of samples in the frame, which will always match the number of
    channels that was passed to 'ClownResampler_HighLevel_Init'. Must return 0
@@ -962,7 +962,7 @@ CLOWNRESAMPLER_API void ClownResampler_Precompute(ClownResampler_Precomputed* co
 CLOWNRESAMPLER_API cc_bool ClownResampler_LowestLevel_Configure(ClownResampler_LowestLevel_Configuration* const configuration, const cc_u32f input_sample_rate, const cc_u32f output_sample_rate, const cc_u32f low_pass_filter_sample_rate)
 {
 	/* Determine the kernel scale. This is used to apply a low-pass filter. Not only is this something that the user may
-	   explicitly request, but it's needed when downsampling to avoid artefacts. */
+	   explicitly request, but it is needed when downsampling to avoid artefacts. */
 	/* Note that we do not ever want the kernel to be squished, but rather only stretched. */
 	const cc_u32f actual_low_pass_sample_rate = CLOWNRESAMPLER_MIN(input_sample_rate, CLOWNRESAMPLER_MIN(output_sample_rate, low_pass_filter_sample_rate));
 	const cc_u32f kernel_scale = ClownResampler_CalculateRatio(input_sample_rate, actual_low_pass_sample_rate);
@@ -1000,7 +1000,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowestLevel_Resample(const ClownResampler
 	const size_t max = (position_integer + configuration->integer_stretched_kernel_radius + max_relative) * channels;
 
 	/* Yes, I know this line is insane.
-	   It's essentially a simplified and fixed-point version of this:
+	   It is essentially a simplified and fixed-point version of this:
 	   const size_t kernel_start = (size_t)(configuration->kernel_step_size * ((float)(min / channels) - position_if_it_were_a_float)); */
 	const size_t kernel_start = CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(configuration->kernel_step_size, (CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(min_relative) - position_fractional));
 
@@ -1053,7 +1053,7 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_LowLevel_Resample(ClownResampler_LowLe
 {
 	for (;;)
 	{
-		/* Check if we've reached the end of the input buffer. */
+		/* Check if we have reached the end of the input buffer. */
 		if (resampler->position_integer >= *total_input_frames)
 		{
 			resampler->position_integer -= *total_input_frames;
@@ -1100,7 +1100,7 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_Init(ClownResampler_HighLeve
 
 	resampler->maximum_integer_stretched_kernel_radius = resampler->leading_padding_frames_needed = resampler->trailing_padding_frames_remaining = resampler->low_level.lowest_level.integer_stretched_kernel_radius;
 
-	/* Blank the width of the kernel's left side to zero, since there won't be previous data to occupy it yet. */
+	/* Blank the width of the kernel's left side to zero, since there will not be previous data to occupy it yet. */
 	CLOWNRESAMPLER_ZERO(resampler->input_buffer, resampler->maximum_integer_stretched_kernel_radius * resampler->low_level.channels * sizeof(*resampler->input_buffer));
 
 	/* Initialise the pointers to point to the middle of the first (and newly-initialised) kernel. */
@@ -1160,13 +1160,13 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_Resample(ClownResampler_High
 		/* If the input buffer is empty, refill it. */
 		if (resampler->input_buffer_start == resampler->input_buffer_end)
 		{
-			/* It's hard to explain this step-by-step, but essentially there's a trick we do here:
+			/* It is hard to explain this step-by-step, but essentially there is a trick that we do here:
 			   in order to avoid the resampler reading frames outside of the buffer, we have 'deadzones'
 			   at each end of the buffer. When a new batch of frames is needed, the second deadzone is
 			   copied over the first one, and the second is overwritten by the end of the new frames. */
 
 			/* Move the end of the last batch of data to the start of the buffer */
-			/* (memcpy won't work here since the copy may overlap). */
+			/* (memcpy will not work here since the copy may overlap). */
 			CLOWNRESAMPLER_MEMMOVE(resampler->input_buffer, resampler->input_buffer_end - maximum_radius_in_samples, double_maximum_radius_in_samples * sizeof(*resampler->input_buffer));
 
 			/* Obtain input frames (note that the new frames start after the frames we just copied). */
