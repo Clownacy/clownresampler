@@ -465,6 +465,9 @@ int main(int argc, char **argv)
 /* Disables the high-level API. */
 /*#define CLOWNRESAMPLER_NO_HIGH_LEVEL_API*/
 
+/* Disables the ClownResampler_HighLevel_Adjust function. */
+/*#define CLOWNRESAMPLER_NO_HIGH_LEVEL_ADJUST*/
+
 /* Disables the ClownResampler_HighLevel_ResampleEnd function. */
 /*#define CLOWNRESAMPLER_NO_HIGH_LEVEL_RESAMPLE_END*/
 
@@ -755,6 +758,7 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_LowLevel_Resample(ClownResampler_LowLe
    Returns 'cc_false' on failure, and 'cc_true' otherwise. */
 CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_Init(ClownResampler_HighLevel_State *resampler, cc_u8f channels, cc_u32f input_sample_rate, cc_u32f output_sample_rate, cc_u32f low_pass_filter_sample_rate);
 
+#ifndef CLOWNRESAMPLER_NO_HIGH_LEVEL_ADJUST
 /* Adjusts properties of the resampler. The input and output sample rates do
    not actually have to match the sample rates being used - they just need to
    provide the ratio between the two (for example, 1 and 2 works just as well
@@ -766,6 +770,7 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_Init(ClownResampler_HighLeve
 
    Returns 'cc_false' on failure, and 'cc_true' otherwise. */
 CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_Adjust(ClownResampler_HighLevel_State *resampler, cc_u32f input_sample_rate, cc_u32f output_sample_rate, cc_u32f low_pass_filter_sample_rate);
+#endif
 
 /* Resamples audio. This function returns when either the output buffer is
    full, or the input callback stops providing frames.
@@ -1109,6 +1114,7 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_Init(ClownResampler_HighLeve
 	return cc_true;
 }
 
+#ifndef CLOWNRESAMPLER_NO_HIGH_LEVEL_ADJUST
 CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_Adjust(ClownResampler_HighLevel_State* const resampler, const cc_u32f input_sample_rate, const cc_u32f output_sample_rate, const cc_u32f low_pass_filter_sample_rate)
 {
 	/* TODO: Cache the inputs to `ClownResampler_LowLevel_Adjust` instead. */
@@ -1136,6 +1142,7 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_Adjust(ClownResampler_HighLe
 
 	return cc_true;
 }
+#endif
 
 CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State* const resampler, const ClownResampler_Precomputed* const precomputed, const ClownResampler_InputCallback input_callback, const ClownResampler_OutputCallback output_callback, const void* const user_data)
 {
