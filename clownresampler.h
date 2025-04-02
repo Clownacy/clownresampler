@@ -985,7 +985,6 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_LowestLevel_Configure(ClownResampler_L
 	/* Note that the scale is cast to 'long' here. This is to prevent samples from being promoted to
 	   'unsigned long' later on, which breaks their sign-extension. Also note that we convert from
 	   16.16 to 17.15 here. */
-	/* TODO: Account for the missing tap here. */
 	configuration->sample_normaliser = (cc_s32f)(inverse_kernel_scale >> (16 - 15));
 
 	return cc_true;
@@ -998,10 +997,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowestLevel_Resample(const ClownResampler
 
 	/* Calculate the bounds of the kernel convolution. */
 	const size_t min_relative = CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEILING(position_fractional + configuration->stretched_kernel_radius_delta);
-	/* This would be ideal, but we need to always use a fixed number of taps so that the normalisation is consistent,
-	   otherwise there is hissing when resampling a long series of the same non-zero sample:
-	   const size_t max_relative = CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_FLOOR(position_fractional + configuration->stretched_kernel_radius); */
-	const size_t max_relative = min_relative + configuration->integer_stretched_kernel_radius - 1 - 2; /* 2 is the maximum that 'min_relative' could be. */
+	const size_t max_relative = CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_FLOOR(position_fractional + configuration->stretched_kernel_radius);
 	const size_t min = (position_integer + min_relative) * channels;
 	const size_t max = (position_integer + configuration->integer_stretched_kernel_radius + max_relative) * channels;
 
