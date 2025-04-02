@@ -631,7 +631,6 @@ typedef struct ClownResampler_Precomputed
 
 typedef struct ClownResampler_LowestLevel_Configuration
 {
-	cc_s32f sample_normaliser;              /* 17.15 fixed point. */
 	size_t stretched_kernel_radius;         /* 16.16 fixed point. */
 	size_t integer_stretched_kernel_radius;
 	size_t stretched_kernel_radius_delta;   /* 16.16 fixed point. */
@@ -981,12 +980,6 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_LowestLevel_Configure(ClownResampler_L
 	CLOWNRESAMPLER_ASSERT(configuration->stretched_kernel_radius_delta < CLOWNRESAMPLER_TO_FIXED_POINT_FROM_INTEGER(1));
 	configuration->kernel_step_size = CLOWNRESAMPLER_FIXED_POINT_MULTIPLY(CLOWNRESAMPLER_KERNEL_RESOLUTION, inverse_kernel_scale);
 
-	/* The wider the kernel, the greater the number of taps, the louder the sample. */
-	/* Note that the scale is cast to 'long' here. This is to prevent samples from being promoted to
-	   'unsigned long' later on, which breaks their sign-extension. Also note that we convert from
-	   16.16 to 17.15 here. */
-	configuration->sample_normaliser = (cc_s32f)(inverse_kernel_scale >> (16 - 15));
-
 	return cc_true;
 }
 
@@ -994,6 +987,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowestLevel_Resample(const ClownResampler
 {
 	cc_u8f current_channel;
 	size_t sample_index, kernel_index;
+	cc_s32f sample_normaliser;
 
 	/* Calculate the bounds of the kernel convolution. */
 	const size_t min_relative = CLOWNRESAMPLER_TO_INTEGER_FROM_FIXED_POINT_CEILING(position_fractional + configuration->stretched_kernel_radius_delta);
@@ -1009,6 +1003,8 @@ CLOWNRESAMPLER_API void ClownResampler_LowestLevel_Resample(const ClownResampler
 	CLOWNRESAMPLER_ASSERT(min_relative <= configuration->integer_stretched_kernel_radius);
 	CLOWNRESAMPLER_ASSERT(max_relative <= configuration->integer_stretched_kernel_radius);
 
+	sample_normaliser = 0;
+
 	for (sample_index = min, kernel_index = kernel_start; sample_index < max; sample_index += channels, kernel_index += configuration->kernel_step_size)
 	{
 		cc_s32f kernel_value;
@@ -1017,11 +1013,16 @@ CLOWNRESAMPLER_API void ClownResampler_LowestLevel_Resample(const ClownResampler
 
 		/* The distance between the frames being output and the frames being read is the parameter to the Lanczos kernel. */
 		kernel_value = (cc_s32f)precomputed->lanczos_kernel_table[kernel_index];
+		sample_normaliser += kernel_value;
 
 		/* Modulate the samples with the kernel and add them to the accumulators. */
 		for (current_channel = 0; current_channel < channels; ++current_channel)
 			output_frame[current_channel] += CLOWNRESAMPLER_FIXED_POINT_MULTIPLY((cc_s32f)input_buffer[sample_index + current_channel], kernel_value);
 	}
+
+	/* Compute 17.15 fixed-point reciprocal. */
+	/* TODO: Anything but this; divisions are slow! */
+	sample_normaliser = 0x80000000 / sample_normaliser;
 
 	/* Normalise the samples. */
 	for (current_channel = 0; current_channel < channels; ++current_channel)
@@ -1029,7 +1030,7 @@ CLOWNRESAMPLER_API void ClownResampler_LowestLevel_Resample(const ClownResampler
 		/* Note that we use a 17.15 version of CLOWNRESAMPLER_FIXED_POINT_MULTIPLY here.
 		   This is because, if we used a 16.16 normaliser, then there's a chance that the result
 		   of the multiplication would overflow, causing popping. */
-		output_frame[current_channel] = (output_frame[current_channel] * configuration->sample_normaliser) / (1 << 15);
+        output_frame[current_channel] = (output_frame[current_channel] * sample_normaliser) / (1 << 15);
 	}
 }
 
