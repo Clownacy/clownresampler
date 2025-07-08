@@ -41,7 +41,7 @@ streamed piece by piece.
 
 #define CLOWNRESAMPLER_IMPLEMENTATION
 #define CLOWNRESAMPLER_STATIC
-#define CLOWNRESAMPLER_NO_HIGH_LEVEL_API /* We don't need the high-level API. */
+#define CLOWNRESAMPLER_NO_HIGH_LEVEL_API /* We do not need the high-level API. */
 #include "../clownresampler.h"
 
 static ClownResampler_Precomputed precomputed;
@@ -177,7 +177,7 @@ int main(int argc, char **argv)
 
 				/* Create a buffer to hold the decoded PCM data. */
 				/* clownresampler's low-level API requires that this buffer have padding at its beginning and end. */
-				resampler_input_buffer = (drmp3_int16*)malloc((resampler.integer_stretched_kernel_radius * 2 + total_mp3_pcm_frames) * size_of_frame);
+				resampler_input_buffer = (drmp3_int16*)malloc((resampler.lowest_level.integer_stretched_kernel_radius * 2 + total_mp3_pcm_frames) * size_of_frame);
 
 				if (resampler_input_buffer == NULL)
 				{
@@ -187,14 +187,14 @@ int main(int argc, char **argv)
 				else
 				{
 					/* Set the padding samples at the start to 0. */
-					memset(&resampler_input_buffer[0], 0, resampler.integer_stretched_kernel_radius * size_of_frame);
+					memset(&resampler_input_buffer[0], 0, resampler.lowest_level.integer_stretched_kernel_radius * size_of_frame);
 
 					/* Decode the MP3 to the input buffer. */
-					drmp3_read_pcm_frames_s16(&mp3_decoder, total_mp3_pcm_frames, &resampler_input_buffer[resampler.integer_stretched_kernel_radius * total_channels]);
+					drmp3_read_pcm_frames_s16(&mp3_decoder, total_mp3_pcm_frames, &resampler_input_buffer[resampler.lowest_level.integer_stretched_kernel_radius * total_channels]);
 					drmp3_uninit(&mp3_decoder);
 
 					/* Set the padding samples at the end to 0. */
-					memset(&resampler_input_buffer[(resampler.integer_stretched_kernel_radius + total_mp3_pcm_frames) * total_channels], 0, resampler.integer_stretched_kernel_radius * size_of_frame);
+					memset(&resampler_input_buffer[(resampler.lowest_level.integer_stretched_kernel_radius + total_mp3_pcm_frames) * total_channels], 0, resampler.lowest_level.integer_stretched_kernel_radius * size_of_frame);
 
 					/* Initialise some variables that will be used by the audio callback. */
 					resampler_input_buffer_total_frames = resampler_input_buffer_frames_remaining = total_mp3_pcm_frames;
