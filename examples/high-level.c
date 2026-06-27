@@ -14,7 +14,7 @@ PERFORMANCE OF THIS SOFTWARE.
 */
 
 /*
-This demonstrates use of clownresampler's high-level API.
+This demonstrates use of ClownResampler's high-level API.
 
 The low-level API is ideal for when the entirety of the input data is available
 at once, whereas the high-level API is ideal for when the input data is
@@ -153,7 +153,7 @@ int main(int argc, char **argv)
 				fflush(stderr);
 
 				/******************************/
-				/* Initialise clownresampler. */
+				/* Initialise ClownResampler. */
 				/******************************/
 
 				/* Precompute the Lanczos kernel. */
@@ -164,7 +164,7 @@ int main(int argc, char **argv)
 				ClownResampler_HighLevel_Init(&resampler, mp3_decoder.channels, mp3_decoder.sampleRate, miniaudio_device.sampleRate, 44100);
 
 				/*****************************************/
-				/* Finished initialising clownresampler. */
+				/* Finished initialising ClownResampler. */
 				/*****************************************/
 
 				total_channels = mp3_decoder.channels;

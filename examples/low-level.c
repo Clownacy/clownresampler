@@ -14,7 +14,7 @@ PERFORMANCE OF THIS SOFTWARE.
 */
 
 /*
-This demonstrates use of clownresampler's low-level API.
+This demonstrates use of ClownResampler's low-level API.
 
 The low-level API is ideal for when the entirety of the input data is available
 at once, whereas the high-level API is ideal for when the input data is
@@ -157,7 +157,7 @@ int main(int argc, char **argv)
 				fflush(stderr);
 
 				/******************************/
-				/* Initialise clownresampler. */
+				/* Initialise ClownResampler. */
 				/******************************/
 
 				/* Precompute the Lanczos kernel. */
@@ -168,15 +168,15 @@ int main(int argc, char **argv)
 				ClownResampler_LowLevel_Init(&resampler, mp3_decoder.channels, mp3_decoder.sampleRate, miniaudio_device.sampleRate, 44100);
 
 				/*****************************************/
-				/* Finished initialising clownresampler. */
+				/* Finished initialising ClownResampler. */
 				/*****************************************/
 
 				/*****************************************/
-				/* Set up clownresampler's input buffer. */
+				/* Set up ClownResampler's input buffer. */
 				/*****************************************/
 
 				/* Create a buffer to hold the decoded PCM data. */
-				/* clownresampler's low-level API requires that this buffer have padding at its beginning and end. */
+				/* ClownResampler's low-level API requires that this buffer have padding at its beginning and end. */
 				resampler_input_buffer = (drmp3_int16*)malloc((resampler.lowest_level.integer_stretched_kernel_radius * 2 + total_mp3_pcm_frames) * size_of_frame);
 
 				if (resampler_input_buffer == NULL)
