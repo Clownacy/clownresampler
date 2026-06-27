@@ -823,6 +823,9 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_Init(ClownResampler_HighLeve
    'user_data'
    An arbitrary pointer that is passed to the callback functions. */
 CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_Resample(ClownResampler_HighLevel_State *resampler, const ClownResampler_Precomputed *precomputed, ClownResampler_InputCallback input_callback, ClownResampler_OutputCallback output_callback, const void *user_data);
+
+/* Flush the internal sample buffer. */
+CLOWNRESAMPLER_API void ClownResampler_HighLevel_Reset(ClownResampler_HighLevel_State *resampler);
 #endif /* CLOWNRESAMPLER_NO_HIGH_LEVEL_API */
 
 #if !defined(CLOWNRESAMPLER_NO_HIGH_LEVEL_ADJUST) && !defined(CLOWNRESAMPLER_NO_HIGH_LEVEL_API)
@@ -1106,13 +1109,9 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_Init(ClownResampler_HighLeve
 	if (!ClownResampler_LowLevel_Init(&resampler->low_level, channels, input_sample_rate, output_sample_rate, low_pass_filter_sample_rate))
 		return cc_false;
 
-	resampler->maximum_integer_stretched_kernel_radius = resampler->leading_padding_frames_needed = resampler->trailing_padding_frames_remaining = resampler->low_level.lowest_level.integer_stretched_kernel_radius;
+	resampler->maximum_integer_stretched_kernel_radius = resampler->low_level.lowest_level.integer_stretched_kernel_radius;
 
-	/* Blank the width of the kernel's left side to zero, since there will not be previous data to occupy it yet. */
-	CLOWNRESAMPLER_ZERO(resampler->input_buffer, resampler->maximum_integer_stretched_kernel_radius * resampler->low_level.channels * sizeof(*resampler->input_buffer));
-
-	/* Initialise the pointers to point to the middle of the first (and newly-initialised) kernel. */
-	resampler->input_buffer_start = resampler->input_buffer_end = resampler->input_buffer + resampler->maximum_integer_stretched_kernel_radius * resampler->low_level.channels;
+	ClownResampler_HighLevel_Reset(resampler);
 
 	return cc_true;
 }
@@ -1173,6 +1172,17 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_Resample(ClownResampler_High
 	} while (!reached_end_of_output_buffer);
 
 	return cc_false;
+}
+
+CLOWNRESAMPLER_API void ClownResampler_HighLevel_Reset(ClownResampler_HighLevel_State* const resampler)
+{
+	resampler->leading_padding_frames_needed = resampler->trailing_padding_frames_remaining = resampler->maximum_integer_stretched_kernel_radius;
+
+	/* Blank the width of the kernel's left side to zero, since there will not be previous data to occupy it yet. */
+	CLOWNRESAMPLER_ZERO(resampler->input_buffer, resampler->maximum_integer_stretched_kernel_radius * resampler->low_level.channels * sizeof(*resampler->input_buffer));
+
+	/* Initialise the pointers to point to the middle of the first (and newly-initialised) kernel. */
+	resampler->input_buffer_start = resampler->input_buffer_end = resampler->input_buffer + resampler->maximum_integer_stretched_kernel_radius * resampler->low_level.channels;
 }
 
 #endif /* CLOWNRESAMPLER_NO_HIGH_LEVEL_API */
