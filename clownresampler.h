@@ -612,6 +612,18 @@ enum
 
 #endif
 
+/* MSVC is extraordinarily stupid and does not define '__cplusplus' to the proper value. */
+/* Standards exist for a reason, dumbasses. */
+#ifdef __cplusplus
+ #ifndef CLOWNRESAMPLER_CPLUSPLUS
+  #ifdef _MSVC_LANG
+   #define CLOWNRESAMPLER_CPLUSPLUS _MSVC_LANG
+  #else
+   #define CLOWNRESAMPLER_CPLUSPLUS __cplusplus
+  #endif
+ #endif
+#endif
+
 #define CLOWNRESAMPLER_COUNT_OF(x) (sizeof(x) / sizeof(*(x)))
 #define CLOWNRESAMPLER_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define CLOWNRESAMPLER_MAX(a, b) ((a) > (b) ? (a) : (b))
@@ -853,6 +865,106 @@ CLOWNRESAMPLER_API cc_bool ClownResampler_HighLevel_ResampleEnd(ClownResampler_H
 #ifdef __cplusplus
 }
 #endif
+
+#ifndef CLOWNRESAMPLER_GUARD_CXX_API
+#define CLOWNRESAMPLER_GUARD_CXX_API
+
+#if defined(CLOWNRESAMPLER_CPLUSPLUS) && CLOWNRESAMPLER_CPLUSPLUS >= 201103L
+
+#include <utility>
+
+namespace ClownResampler
+{
+	namespace Internal
+	{
+		class Precomputed
+		{
+		private:
+			ClownResampler_Precomputed precomputed;
+
+		public:
+			Precomputed()
+			{
+				ClownResampler_Precompute(&precomputed);
+			}
+
+			operator const ClownResampler_Precomputed*() const
+			{
+				return &precomputed;
+			}
+		};
+
+		inline Precomputed precomputed;
+	}
+
+	class HighLevel
+	{
+	private:
+		ClownResampler_HighLevel_State state;
+
+	public:
+		template<typename... Ts>
+		void Init(Ts &&...args)
+		{
+			ClownResampler_HighLevel_Init(&state, std::forward<Ts>(args)...);
+		}
+
+		template<typename... Ts>
+		void Adjust(Ts &&...args)
+		{
+			ClownResampler_HighLevel_Adjust(&state, std::forward<Ts>(args)...);
+		}
+
+		void Reset()
+		{
+			ClownResampler_HighLevel_Reset(&state);
+		}
+
+		template<typename T1, typename T2>
+		bool Resample(const T1 &input_callback, const T2 &output_callback)
+		{
+			/* Crazed nonsense to deal with the clunky C API. */
+			const struct
+			{
+				const void *input_callback, *output_callback;
+			} CallbackData = {
+					&input_callback,
+					&output_callback
+			};
+
+			const auto &InputCallbackWrapper = [](void *user_data, cc_s16l *buffer, std::size_t total_frames) -> std::size_t
+			{
+				auto data_pointer = static_cast<decltype(CallbackData)*>(user_data);
+
+				return (*reinterpret_cast<const T1*>(data_pointer->input_callback))(buffer, total_frames);
+			};
+
+			const auto &OutputCallbackWrapper = [](void *user_data, const cc_s32f *frame, cc_u8f total_samples) -> cc_bool
+			{
+				auto data_pointer = static_cast<decltype(CallbackData)*>(user_data);
+
+				return (*reinterpret_cast<const T2*>(data_pointer->output_callback))(frame, total_samples);
+			};
+
+			return ClownResampler_HighLevel_Resample(&state, Internal::precomputed, InputCallbackWrapper, OutputCallbackWrapper, &CallbackData);
+		}
+
+		template<typename T>
+		bool ResampleEnd(const T &output_callback)
+		{
+			/* Crazed nonsense to deal with the clunky C API. */
+			const auto &OutputCallbackWrapper = [](void *user_data, const cc_s32f *frame, cc_u8f total_samples) -> cc_bool
+			{
+				return (*reinterpret_cast<const T*>(user_data))(frame, total_samples);
+			};
+
+			return ClownResampler_HighLevel_ResampleEnd(&state, Internal::precomputed, OutputCallbackWrapper, &output_callback);
+		}
+	};
+}
+#endif
+
+#endif /* CLOWNRESAMPLER_GUARD_CXX_API */
 
 #endif /* !defined(CLOWNRESAMPLER_STATIC) || defined(CLOWNRESAMPLER_IMPLEMENTATION) */
 
